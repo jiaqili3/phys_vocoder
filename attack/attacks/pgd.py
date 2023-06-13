@@ -31,6 +31,7 @@ class PGD(Attack):
 
     def __init__(self, model, eps=8/255, alpha=2/255, steps=10, random_start=True):
         super().__init__("PGD", model)
+        self.model = model
         self.eps = eps
         self.alpha = alpha
         self.steps = steps
@@ -60,7 +61,8 @@ class PGD(Attack):
 
         for _ in range(self.steps):
             adv_x2.requires_grad = True
-            decision, score = self.get_logits(adv_x2)
+            # decision, score = self.get_logits(adv_x2)
+            decision, score = self.model(x1, adv_x2)
 
             # Calculate loss
             if self.targeted:
@@ -77,4 +79,4 @@ class PGD(Attack):
                                 min=-self.eps, max=self.eps)
             adv_x2 = torch.clamp(x2 + delta, min=0, max=1).detach()
 
-        return adv_x2
+        return adv_x2, decision
