@@ -1,9 +1,8 @@
 import sys
-sys.path.append('.')
-from adaptive_attack.EOT import EOT, EOTSV, EOTSVEnsemble
-from FGSM import FGSM
-from AttackTypes import AttackTypes
-from utils import resolve_loss
+from attack.attacks.adaptive_attack.EOT import EOT, EOTSV, EOTSVEnsemble
+from .FGSM import FGSM
+from .AttackTypes import AttackTypes
+from .utils import resolve_loss
 import numpy as np
 import torch
 

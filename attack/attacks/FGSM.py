@@ -1,11 +1,11 @@
 import sys
 sys.path.append('.')
 
-from AttackTypes import AttackTypes
-from utils import resolve_loss, resolve_prediction
+from .AttackTypes import AttackTypes
+from .utils import resolve_loss, resolve_prediction
 import numpy as np
 import torch
-from adaptive_attack.EOT import EOT
+from .adaptive_attack.EOT import EOT
 
 
 class FGSM():
