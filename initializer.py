@@ -24,7 +24,7 @@ config.model = RawNet3
 
 if config.model == RawNet3:
     config.model = RawNet3(**model_config['RawNet3'])
-    config.model.load_state_dict(torch.load('/mnt/workspace/lijiaqi/phys_vocoder/tmp/voxceleb_trainer/models/weights/RawNet3/model.pt'))
+    config.model.load_state_dict(torch.load('/mnt/workspace/lijiaqi/phys_vocoder/pretrained_models/rawnet3.pt'))
     config.model.threshold = 0.3295809328556061
 
 # ResNetSE34V2
