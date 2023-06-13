@@ -3,12 +3,10 @@
 import torch
 import torch.nn as nn
 from asteroid_filterbanks import Encoder, ParamSincFB
-import model
 import sys
 import torch.nn.functional as F
 
-sys.path.append('..')
-from model.RawNetBasicBlock import PreEmphasis
+from .RawNetBasicBlock import PreEmphasis, Bottle2neck
 
 
 class RawNet3(nn.Module):
@@ -23,7 +21,7 @@ class RawNet3(nn.Module):
         self.norm_sinc = kwargs["norm_sinc"]
         self.out_bn = kwargs["out_bn"]
         self.summed = summed
-        block = getattr(model, block)
+        block = Bottle2neck
 
         self.preprocess = nn.Sequential(
             PreEmphasis(), nn.InstanceNorm1d(1, eps=1e-4, affine=True)

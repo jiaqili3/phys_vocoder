@@ -5,9 +5,9 @@ import torch.nn.functional as F
 from torch.nn.utils import remove_weight_norm, weight_norm
 from torch.nn.modules.utils import consume_prefix_in_state_dict_if_present
 from typing import Tuple
-from hifigan.dataset import LogMelSpectrogram
+from phys_vocoder.hifigan.dataset import LogMelSpectrogram
 
-from hifigan.utils import get_padding
+from phys_vocoder.hifigan.utils import get_padding
 
 
 URLS = {
@@ -22,11 +22,12 @@ class HifiganEndToEnd(torch.nn.Module):
     def __init__(
         self, *args, **kwargs  
     ) -> None:
+        super().__init__()
         self.generator = HifiganGenerator(*args, **kwargs)
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         spec = LogMelSpectrogram().forward_nopad(x.unsqueeze(0)).squeeze(0)
         return self.generator(spec.squeeze(1)).squeeze(0)
-    def load_model(self, checkpoint_path: str, device:str) -> None:
+    def load_model(self, checkpoint_path: str, device:str='cpu') -> None:
         self.generator.load_state_dict(torch.load(checkpoint_path, map_location=device)["generator"]["model"])
 
 class HifiganGenerator(torch.nn.Module):

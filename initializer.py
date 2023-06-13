@@ -1,6 +1,6 @@
 from easydict import EasyDict as edict
 import sys
-from attack.Attack import PGDAttack
+from attack.attacks.pgd import PGD
 import torch
 
 config = edict()
@@ -14,13 +14,18 @@ config.phys_vocoder_model = HifiganEndToEnd
 # HifiGAN
 if config.phys_vocoder_model == HifiganEndToEnd:
     config.phys_vocoder_model = HifiganEndToEnd()
-    config.phys_vocoder_model.load_model('phys_vocoder/hifigan/generator/g_00300000')
+    config.phys_vocoder_model.load_model('/mnt/workspace/lijiaqi/hifigan/checkpoints/0607/model-370000.pt')
 
 # ---------------------------------------- ASV model ---------------------------------------- #
-from attack.models.RawNet3_ import RawNet3
+from attack.models.RawNet import RawNet3
+from attack.models.model_config import config as model_config
 
-config.model = edict()
-config.model.model = RawNet3
+config.model = RawNet3
+
+if config.model == RawNet3:
+    config.model = RawNet3(**model_config['RawNet3'])
+    config.model.load_state_dict(torch.load('/mnt/workspace/lijiaqi/phys_vocoder/tmp/voxceleb_trainer/models/weights/RawNet3/model.pt'))
+    config.model.threshold = 0.3295809328556061
 
 # ResNetSE34V2
 # config.model.ResNetSE34V2 = edict()
@@ -33,9 +38,7 @@ config.model.model = RawNet3
 # config.model.ECAPATDNN.threshold = 0.33709782361984253
 
 # RawNet3
-if config.model.model == RawNet3:
     # config.model.save_path = '/home/wangli/ASGSR/pretrained_models/RawNet3/model.pt'
-    config.model.threshold = 0.3295809328556061
 
 # XVEC
 # config.model.XVEC = edict()
@@ -44,25 +47,25 @@ if config.model.model == RawNet3:
 
 
 # ---------------------------------------- Attack ---------------------------------------
-config.attack = edict()
-config.attack.attack_class = PGDAttack
+# config.attack = edict()
+# config.attack.attack_class = PGD
 
-# PGD
-if config.attack.attack_class == PGDAttack:
-    kwargs = {
-        'model': None,
-        'task': 'SV',
-        'epsilon': 0.005,
-        'step_size': 0.0004,
-        'max_iter': 10,
-        'num_random_init': 0,
-        'targeted': False,
-        'batch_size': 1,
-        'EOT_size': 1,
-        'EOT_batch_size': 1,
-        'verbose': 1,
-    }
-    config.attack.attack_class = PGDAttack(**kwargs)
+# # PGD
+# if config.attack.attack_class == PGD:
+#     kwargs = {
+#         'model': None,
+#         'task': 'SV',
+#         'epsilon': 0.005,
+#         'step_size': 0.0004,
+#         'max_iter': 10,
+#         'num_random_init': 0,
+#         'targeted': False,
+#         'batch_size': 1,
+#         'EOT_size': 1,
+#         'EOT_batch_size': 1,
+#         'verbose': 1,
+#     }
+#     config.attack.attack_class = PGD(**kwargs)
 
 # ---------------------------------------- dataset --------------------------------------- #
 config.data = edict()
