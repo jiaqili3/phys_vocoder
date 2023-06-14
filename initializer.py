@@ -47,6 +47,7 @@ if config.model == RawNet3:
 
 
 # ---------------------------------------- Attack ---------------------------------------
+config.attack.adv_dir = '/mnt/workspace/lijiaqi/phys_vocoder/adver_out'
 # config.attack = edict()
 # config.attack.attack_class = PGD
 

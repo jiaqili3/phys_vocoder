@@ -13,30 +13,33 @@ device = 'cuda:0'
 model = config.model
 model = model.to(device)
 phys_vocoder = config.phys_vocoder_model
-phys_vocoder = phys_vocoder.to(device)
+if phys_vocoder is not None:
+    phys_vocoder = phys_vocoder.to(device)
 
-adver_dir = '/mnt/workspace/lijiaqi/phys_vocoder/adver_out'
+adver_dir = config.attack.adv_dir
 
 class CombinedModel(torch.nn.Module):
     def __init__(self, model, phys_vocoder):
         super(CombinedModel, self).__init__()
-        self.model = model
         self.phys_vocoder = phys_vocoder
+        self.model = model
         if self.phys_vocoder is not None:
             print('using physical vocoder')
     def forward(self, x1, x2):
         # x1 enroll, x2 test
         # return (decisions, cos sim)
         if self.phys_vocoder is not None:
-            x2 = self.phys_vocoder(x2)
-            x2 = x2.unsqueeze(0)
-            assert x2.dim() == 3
-        return self.model.make_decision_SV(x1,x2)
-
-combined_model = CombinedModel(model, phys_vocoder)
+            x2_voc = self.phys_vocoder(x2)
+        else:
+            x2_voc = x2
+        return self.model.make_decision_SV(x1, x2_voc)
 
 model.eval()
-attacker = PGD(model, steps=10, eps=0.0004, random_start=False, alpha=0.005)
+combined_model = CombinedModel(model, phys_vocoder)
+combined_model.eval()
+combined_model.threshold = model.threshold
+
+attacker = PGD(combined_model, steps=100, alpha=1e-15, random_start=False, eps=0.005)
 
 # data
 dataset_name = 'ASVspoof2019'

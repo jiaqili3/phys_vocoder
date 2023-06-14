@@ -27,8 +27,8 @@ class HifiganEndToEnd(torch.nn.Module):
         self.LogMelSpectrogram = LogMelSpectrogram()
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         spec = self.LogMelSpectrogram.forward_nopad(x.unsqueeze(0)).squeeze(0)
-        return self.generator(spec.squeeze(1)).squeeze(0)
-    def load_model(self, checkpoint_path: str, device:str) -> None:
+        return self.generator(spec.squeeze(1))
+    def load_model(self, checkpoint_path: str, device:str='cpu') -> None:
         self.generator.load_state_dict(torch.load(checkpoint_path, map_location=device)["generator"]["model"])
 
 class HifiganGenerator(torch.nn.Module):

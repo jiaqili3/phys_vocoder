@@ -66,9 +66,9 @@ class PGD(Attack):
             adv_x2.requires_grad = True
             # decision, score = self.get_logits(adv_x2)
             try:
-                decision, score = self.model.make_decision_SV(x1, adv_x2)
-            except:
                 decision, score = self.model(x1, adv_x2)
+            except:
+                decision, score = self.model.make_decision_SV(x1, adv_x2)
             # print(i, score)
             # Calculate loss
             cost = self.loss(score, y)
