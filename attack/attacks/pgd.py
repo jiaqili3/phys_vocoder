@@ -72,7 +72,7 @@ class PGD(Attack):
             # print(i, score)
             # Calculate loss
             cost = self.loss(score, y)
-            print(f'loss: {cost}')
+            print(f'loss: {cost.item()}')
 
             # Update adversarial x2
             grad = torch.autograd.grad(cost, adv_x2,

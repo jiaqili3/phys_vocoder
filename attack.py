@@ -39,7 +39,7 @@ combined_model = CombinedModel(model, phys_vocoder)
 combined_model.eval()
 combined_model.threshold = model.threshold
 
-attacker = PGD(combined_model, steps=100, alpha=1e-15, random_start=False, eps=0.005)
+attacker = PGD(combined_model, steps=100, alpha=0.0004, random_start=False, eps=0.005)
 
 # data
 dataset_name = 'ASVspoof2019'
