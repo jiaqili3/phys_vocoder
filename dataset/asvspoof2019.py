@@ -1,8 +1,7 @@
 import os.path
 
 from torch.utils.data import Dataset
-from utils.io_utils import load_waveform_torch
-
+import torchaudio
 
 class ASVspoof2019(Dataset):
     def __init__(self, data_file, train_path, dev_path, eval_path):
@@ -33,8 +32,8 @@ class ASVspoof2019(Dataset):
         eval_file_path = self._flist[i][1]
         enroll_file = self._flist[i][2]
         eval_file = self._flist[i][3]
-        enroll_waveform, _ = load_waveform_torch(enroll_file_path)
-        eval_waveform, _ = load_waveform_torch(eval_file_path)
+        enroll_waveform, _ = torchaudio.load(enroll_file_path)
+        eval_waveform, _ = torchaudio.load(eval_file_path)
 
         return enroll_waveform, eval_waveform, 16000, 0, enroll_file, eval_file
     
