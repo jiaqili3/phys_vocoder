@@ -22,16 +22,21 @@ class CombinedModel(torch.nn.Module):
         super(CombinedModel, self).__init__()
         self.model = model
         self.phys_vocoder = phys_vocoder
+        if self.phys_vocoder is not None:
+            print('using physical vocoder')
     def forward(self, x1, x2):
         # x1 enroll, x2 test
         # return (decisions, cos sim)
-        x2 = self.phys_vocoder(x2)
-        return self.model.make_decision_sv(x1,x2)
+        if self.phys_vocoder is not None:
+            x2 = self.phys_vocoder(x2)
+            x2 = x2.unsqueeze(0)
+            assert x2.dim() == 3
+        return self.model.make_decision_SV(x1,x2)
 
 combined_model = CombinedModel(model, phys_vocoder)
 
-attacker = PGD(combined_model)
-attacker = attacker.to(device)
+model.eval()
+attacker = PGD(model, steps=10, eps=0.0004, random_start=False, alpha=0.005)
 
 # data
 dataset_name = 'ASVspoof2019'
@@ -49,6 +54,7 @@ def save_audio(advers, spk1_file_ids, spk2_file_ids, root, success, fs=16000):
         adver_path = os.path.join(root, file_name + ".wav")
         adver = adver.detach().cpu()
         adver = torch.unsqueeze(adver, 0)
+        print(f'saved to {adver_path}')
         torchaudio.save(adver_path, adver, fs)
         result_file.write('{} {}\n'.format(file_name, suc))
     result_file.close()
@@ -56,6 +62,7 @@ def save_audio(advers, spk1_file_ids, spk2_file_ids, root, success, fs=16000):
 # attack
 success_cnt = 0
 total_cnt = 0
+
 
 for item in dataloader:
     # shape: (batch_size, channels, audio_len)
@@ -70,6 +77,14 @@ for item in dataloader:
         continue
     total_cnt += 1
     x1, x2, y = x1.to(device), x2.to(device), y.to(device)
+
+
+    # decision, score = model.make_decision_SV(x1, x2)
+    # print(score)
+    # continue
+
+
+
     # speaker file id
     spk1_file_ids = item[config.data[dataset_name].enroll_file_index]
     spk2_file_ids = item[config.data[dataset_name].test_file_index]
@@ -78,10 +93,10 @@ for item in dataloader:
     for spk1_file_id, spk2_file_id in zip(spk1_file_ids, spk2_file_ids):
         file_name = '{}_{}'.format(spk1_file_id, spk2_file_id)
         adver_path = os.path.join(adver_dir, file_name + ".wav")
-        if os.path.exists(adver_path):
-            print('adversarial audio already exists: {}'.format(adver_path))
-            flag = True
-            break
+        # if os.path.exists(adver_path):
+        #     print('adversarial audio already exists: {}'.format(adver_path))
+        #     flag = True
+        #     break
     if flag:
         continue
 

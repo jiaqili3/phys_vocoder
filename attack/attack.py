@@ -68,9 +68,9 @@ class Attack(object):
         tol = 1e-4
         if self._normalization_applied:
             images = self.inverse_normalize(images)
-        if torch.max(images) > 1+tol or torch.min(images) < 0-tol:
-            raise ValueError('Input must have a range [0, 1] (max: {}, min: {})'.format(
-                torch.max(images), torch.min(images)))
+        # if torch.max(images) > 1+tol or torch.min(images) < 0-tol:
+        #     raise ValueError('Input must have a range [0, 1] (max: {}, min: {})'.format(
+        #         torch.max(images), torch.min(images)))
         return images
 
     def _check_outputs(self, images):

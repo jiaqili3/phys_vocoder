@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 from ..attack import Attack
-
+from ..models.loss import SpeakerVerificationLoss
 
 class PGD(Attack):
     r"""
@@ -29,7 +29,7 @@ class PGD(Attack):
 
     """
 
-    def __init__(self, model, eps=8/255, alpha=2/255, steps=10, random_start=True):
+    def __init__(self, model, eps=8/255, alpha=2/255, steps=10, random_start=False):
         super().__init__("PGD", model)
         self.model = model
         self.eps = eps
@@ -37,6 +37,7 @@ class PGD(Attack):
         self.steps = steps
         self.random_start = random_start
         self.supported_mode = ['default', 'targeted']
+        self.loss = SpeakerVerificationLoss(threshold=self.model.threshold)
 
     def forward(self, x1, x2, y):
         r"""
@@ -47,10 +48,9 @@ class PGD(Attack):
         x2 = x2.clone().detach().to(self.device)
         y = y.clone().detach().to(self.device)
 
-        if self.targeted:
-            target_y = self.get_target_label(x2, y)
+        # if self.targeted:
+        #     target_y = self.get_target_label(x2, y)
 
-        loss = nn.CrossEntropyLoss()
         adv_x2 = x2.clone().detach()
 
         if self.random_start:
@@ -59,24 +59,28 @@ class PGD(Attack):
                 torch.empty_like(adv_x2).uniform_(-self.eps, self.eps)
             adv_x2 = torch.clamp(adv_x2, min=0, max=1).detach()
 
-        for _ in range(self.steps):
+        for i in range(self.steps):
+            if adv_x2.dim() != 3:
+                assert adv_x2.dim() == 2
+                adv_x2 = adv_x2.unsqueeze(0)
             adv_x2.requires_grad = True
             # decision, score = self.get_logits(adv_x2)
-            decision, score = self.model(x1, adv_x2)
-
+            try:
+                decision, score = self.model.make_decision_SV(x1, adv_x2)
+            except:
+                decision, score = self.model(x1, adv_x2)
+            # print(i, score)
             # Calculate loss
-            if self.targeted:
-                cost = -loss(score, target_y)
-            else:
-                cost = loss(score, y)
+            cost = self.loss(score, y)
+            print(f'loss: {cost}')
 
             # Update adversarial x2
             grad = torch.autograd.grad(cost, adv_x2,
                                        retain_graph=False, create_graph=False)[0]
 
             adv_x2 = adv_x2.detach() + self.alpha*grad.sign()
-            delta = torch.clamp(adv_x2 - x2,
-                                min=-self.eps, max=self.eps)
-            adv_x2 = torch.clamp(x2 + delta, min=0, max=1).detach()
+            # delta = torch.clamp(adv_x2 - x2,
+                                # min=-self.eps, max=self.eps)
+            # adv_x2 = torch.clamp(x2 + delta, min=0, max=1).detach()
 
         return adv_x2, decision
