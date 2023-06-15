@@ -39,13 +39,13 @@ combined_model = CombinedModel(model, phys_vocoder)
 combined_model.eval()
 combined_model.threshold = model.threshold
 
-attacker = PGD(combined_model, steps=100, alpha=0.0004, random_start=False, eps=0.005)
+attacker = PGD(combined_model, steps=200, alpha=0.0004, random_start=False, eps=1)
 
 # data
 dataset_name = 'ASVspoof2019'
 dataset_config = config.data[dataset_name].dataset
 dataset = ASVspoof2019(**dataset_config)
-dataloader = DataLoader(dataset, num_workers=4, batch_size=1)
+dataloader = DataLoader(dataset, num_workers=4, batch_size=1, shuffle=True)
 print('dataset: {}'.format(dataset_name))
 print('dataset size: {}'.format(len(dataset)))
 
@@ -67,7 +67,7 @@ success_cnt = 0
 total_cnt = 0
 
 
-for item in dataloader:
+for runno, item in enumerate(dataloader):
     # shape: (batch_size, channels, audio_len)
     x1 = item[config.data[dataset_name].waveform_index_spk1]
     # to extract single channel?
@@ -103,7 +103,7 @@ for item in dataloader:
     if flag:
         continue
 
-    adver, success = attacker(x1, x2, y)
+    adver, success = attacker(x1, x2, y, runno)
 
     if len(adver.size()) == 3:
         adver = adver.squeeze(1)

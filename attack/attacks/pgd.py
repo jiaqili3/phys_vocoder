@@ -4,6 +4,9 @@ import torch.nn as nn
 from ..attack import Attack
 from ..models.loss import SpeakerVerificationLoss
 
+from torch.utils.tensorboard import SummaryWriter
+writer = SummaryWriter()
+
 class PGD(Attack):
     r"""
     PGD in the paper 'Towards Deep Learning Models Resistant to Adversarial Attacks'
@@ -39,7 +42,7 @@ class PGD(Attack):
         self.supported_mode = ['default', 'targeted']
         self.loss = SpeakerVerificationLoss(threshold=self.model.threshold)
 
-    def forward(self, x1, x2, y):
+    def forward(self, x1, x2, y, runno):
         r"""
         Overridden.
         """
@@ -73,6 +76,11 @@ class PGD(Attack):
             # Calculate loss
             cost = self.loss(score, y)
             print(f'loss: {cost.item()}')
+            writer.add_scalar(f'Run {runno} Loss', cost.item(), i)
+
+            # early-stopping
+            # if cost > 0:
+            #     break
 
             # Update adversarial x2
             grad = torch.autograd.grad(cost, adv_x2,

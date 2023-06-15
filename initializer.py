@@ -2,6 +2,8 @@ from easydict import EasyDict as edict
 import sys
 from attack.attacks.pgd import PGD
 import torch
+from torch.utils.tensorboard import SummaryWriter
+
 
 config = edict()
 
