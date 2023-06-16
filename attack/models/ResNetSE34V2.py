@@ -8,7 +8,7 @@ import torch.nn.functional as F
 import sys
 
 sys.path.append('..')
-import model.ResNetBlocks as ResNetBlocks
+import attack.models.ResNetBlocks as ResNetBlocks
 
 
 class PreEmphasis(torch.nn.Module):

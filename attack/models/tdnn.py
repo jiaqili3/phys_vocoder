@@ -17,7 +17,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from model import pooling_layers
+import attack.models.pooling_layers as pooling_layers
 import torchaudio
 
 

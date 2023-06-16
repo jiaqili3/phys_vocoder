@@ -17,7 +17,7 @@ if phys_vocoder is not None:
     phys_vocoder = phys_vocoder.to(device)
 
 adver_dir = config.attack.adv_dir
-adver_dir = os.path.join(adver_dir, f'{config.attack.steps}_{config.attack.alpha}_{config.attack.eps}')
+adver_dir = os.path.join(adver_dir, f'{model.__class__.__name__}_{config.attack.steps}_{config.attack.alpha}_{config.attack.eps}')
 os.makedirs(adver_dir, exist_ok=True)
 print(f'adv samples saved to {adver_dir}')
 
@@ -48,7 +48,7 @@ attacker = PGD(combined_model, steps=config.attack.steps, alpha=config.attack.al
 dataset_name = 'ASVspoof2019'
 dataset_config = config.data[dataset_name].dataset
 dataset = ASVspoof2019(**dataset_config)
-dataloader = DataLoader(dataset, num_workers=4, batch_size=1, shuffle=True)
+dataloader = DataLoader(dataset, num_workers=4, batch_size=1, shuffle=False)
 print('dataset: {}'.format(dataset_name))
 print('dataset size: {}'.format(len(dataset)))
 
@@ -99,10 +99,11 @@ for runno, item in enumerate(dataloader):
     for spk1_file_id, spk2_file_id in zip(spk1_file_ids, spk2_file_ids):
         file_name = '{}_{}'.format(spk1_file_id, spk2_file_id)
         adver_path = os.path.join(adver_dir, file_name + ".wav")
-        # if os.path.exists(adver_path):
-        #     print('adversarial audio already exists: {}'.format(adver_path))
-        #     flag = True
-        #     break
+        # skip already existing ones
+        if os.path.exists(adver_path):
+            print('adversarial audio already exists: {}'.format(adver_path))
+            flag = True
+            break
     if flag:
         continue
 
