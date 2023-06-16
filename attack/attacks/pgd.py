@@ -62,6 +62,11 @@ class PGD(Attack):
                 torch.empty_like(adv_x2).uniform_(-self.eps, self.eps)
             adv_x2 = torch.clamp(adv_x2, min=0, max=1).detach()
 
+        # select best
+        best_cost = -torch.inf
+        best_decision = torch.tensor(0).float()
+        best_adv_x2 = adv_x2.clone().detach()
+
         for i in range(self.steps):
             if adv_x2.dim() != 3:
                 assert adv_x2.dim() == 2
@@ -75,8 +80,8 @@ class PGD(Attack):
             # print(i, score)
             # Calculate loss
             cost = self.loss(score, y)
-            print(f'loss: {cost.item()}')
-            writer.add_scalar(f'Run {runno} Loss', cost.item(), i)
+            # print(f'loss: {cost.item()}')
+            writer.add_scalar(f'Sample {runno} Loss', cost.item(), i)
 
             # early-stopping
             # if cost > 0:
@@ -87,8 +92,15 @@ class PGD(Attack):
                                        retain_graph=False, create_graph=False)[0]
 
             adv_x2 = adv_x2.detach() + self.alpha*grad.sign()
-            # delta = torch.clamp(adv_x2 - x2,
-                                # min=-self.eps, max=self.eps)
-            # adv_x2 = torch.clamp(x2 + delta, min=0, max=1).detach()
+            delta = torch.clamp(adv_x2 - x2,
+                                min=-self.eps, max=self.eps)
+            adv_x2 = torch.clamp(x2 + delta, min=-1, max=1).detach()
 
-        return adv_x2, decision
+            # update best
+            if cost > best_cost:
+                best_cost = cost
+                best_adv_x2 = adv_x2.clone().detach()
+                best_decision = decision.clone().detach()
+
+        # return adv_x2, decision
+        return best_adv_x2, best_decision
