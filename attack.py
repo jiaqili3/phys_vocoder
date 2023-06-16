@@ -17,6 +17,9 @@ if phys_vocoder is not None:
     phys_vocoder = phys_vocoder.to(device)
 
 adver_dir = config.attack.adv_dir
+adver_dir = os.path.join(adver_dir, f'{config.attack.steps}_{config.attack.alpha}_{config.attack.eps}')
+os.makedirs(adver_dir, exist_ok=True)
+print(f'adv samples saved to {adver_dir}')
 
 class CombinedModel(torch.nn.Module):
     def __init__(self, model, phys_vocoder):
@@ -39,7 +42,7 @@ combined_model = CombinedModel(model, phys_vocoder)
 combined_model.eval()
 combined_model.threshold = model.threshold
 
-attacker = PGD(combined_model, steps=200, alpha=0.0004, random_start=False, eps=1)
+attacker = PGD(combined_model, steps=config.attack.steps, alpha=config.attack.alpha, random_start=False, eps=config.attack.eps)
 
 # data
 dataset_name = 'ASVspoof2019'

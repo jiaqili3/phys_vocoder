@@ -2,7 +2,6 @@ from easydict import EasyDict as edict
 import sys
 from attack.attacks.pgd import PGD
 import torch
-from torch.utils.tensorboard import SummaryWriter
 
 
 config = edict()
@@ -51,7 +50,13 @@ if config.model == RawNet3:
 # ---------------------------------------- Attack ---------------------------------------
 
 config.attack = edict()
-config.attack.adv_dir = '/mnt/workspace/lijiaqi/phys_vocoder/adver_out'
+config.attack.adv_dir = '/mnt/workspace/lijiaqi/phys_vocoder/adver_out/'
+
+config.attack.steps = 300
+config.attack.alpha = 0.0004
+config.attack.eps = 0.12
+
+
 # config.attack.attack_class = PGD
 
 # # PGD
