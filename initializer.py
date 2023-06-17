@@ -28,19 +28,19 @@ config.model = RawNet3
 
 if config.model == RawNet3:
     config.model = RawNet3(**model_config['RawNet3'])
-    config.model.load_state_dict(torch.load('/mnt/workspace/lijiaqi/phys_vocoder/pretrained_models/rawnet3.pt'))
+    config.model.load_state_dict(torch.load('./pretrained_models/rawnet3.pt'))
     config.model.threshold = 0.3295809328556061
 elif config.model == ECAPATDNN:
     config.model = ECAPATDNN(**model_config['ECAPATDNN'])
-    config.model.load_state_dict(torch.load('/mnt/workspace/lijiaqi/phys_vocoder/pretrained_models/ECAPATDNN.pth'))
+    config.model.load_state_dict(torch.load('./pretrained_models/ECAPATDNN.pth'))
     config.model.threshold = 0.33709782361984253
 elif config.model == ResNetSE34V2:
     config.model = ResNetSE34V2(**model_config['ResNetSE34V2'])
-    config.model.load_state_dict(torch.load('/mnt/workspace/lijiaqi/phys_vocoder/pretrained_models/ResNetSE34V2.pth'))
+    config.model.load_state_dict(torch.load('./pretrained_models/ResNetSE34V2.pth'))
     config.model.threshold = 0.3702884316444397
 elif config.model == XVEC:
     config.model = XVEC(**model_config['XVEC'])
-    config.model.load_state_dict(torch.load('/mnt/workspace/lijiaqi/phys_vocoder/pretrained_models/XVEC.pth'))
+    config.model.load_state_dict(torch.load('./pretrained_models/XVEC.pth'))
     config.model.threshold = 0.879676103591919
 
 # ResNetSE34V2
