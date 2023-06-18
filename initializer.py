@@ -24,7 +24,7 @@ from attack.models.ResNetSE34V2 import ResNetSE34V2
 from attack.models.tdnn import XVEC
 from attack.models.model_config import config as model_config
 
-config.model = RawNet3
+config.model = ResNetSE34V2
 
 if config.model == RawNet3:
     config.model = RawNet3(**model_config['RawNet3'])
@@ -67,9 +67,9 @@ elif config.model == XVEC:
 config.attack = edict()
 config.attack.adv_dir = '/mnt/workspace/lijiaqi/phys_vocoder/adver_out/'
 
-config.attack.steps = 300
+config.attack.steps = 10
 config.attack.alpha = 0.0004
-config.attack.eps = 0.02
+config.attack.eps = 0.005
 
 
 # config.attack.attack_class = PGD
