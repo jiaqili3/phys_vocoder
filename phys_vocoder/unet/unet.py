@@ -31,7 +31,7 @@ class UpSamplingLayer(nn.Module):
 
 class UNet(nn.Module):
     def __init__(self, n_layers=12, channels_interval=24):
-        super(Model, self).__init__()
+        super().__init__()
 
         self.n_layers = n_layers
         self.channels_interval = channels_interval

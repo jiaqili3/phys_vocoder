@@ -1,64 +1,291 @@
 import argparse
-import os
+import logging
+from pathlib import Path
 
-import json5
-import numpy as np
 import torch
+import torch.nn.functional as F
+import torch.optim as optim
 from torch.utils.data import DataLoader
-from util.utils import initialize_config
+from torch.utils.tensorboard import SummaryWriter
+import torch.distributed as dist
+from torch.utils.data.distributed import DistributedSampler
+import torch.multiprocessing as mp
+from torch.nn.parallel import DistributedDataParallel as DDP
+
+import sys
+sys.path.append('..')
+sys.path.append('.')
+from phys_vocoder.dataset import WavDataset
+from hifigan.utils import load_checkpoint, save_checkpoint, plot_spectrogram
+
+from phys_vocoder.unet.unet import UNet
+
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 
-def main(config, resume):
-    torch.manual_seed(config["seed"])  # for both CPU and GPU
-    np.random.seed(config["seed"])
+BATCH_SIZE = 4
+SEGMENT_LENGTH = 16384
+HOP_LENGTH = 160
+SAMPLE_RATE = 16000
+BASE_LEARNING_RATE = 2e-4
+FINETUNE_LEARNING_RATE = 2e-4
+BETAS = (0.8, 0.99)
+LEARNING_RATE_DECAY = 0.999
+WEIGHT_DECAY = 1e-5
+EPOCHS = 3100
+LOG_INTERVAL = 5
+VALIDATION_INTERVAL = 1000
+NUM_GENERATED_EXAMPLES = 10
+CHECKPOINT_INTERVAL = 5000
 
-    train_dataloader = DataLoader(
-        dataset=initialize_config(config["train_dataset"]),
-        batch_size=config["train_dataloader"]["batch_size"],
-        num_workers=config["train_dataloader"]["num_workers"],
-        shuffle=config["train_dataloader"]["shuffle"],
-        pin_memory=config["train_dataloader"]["pin_memory"]
+
+def train_model(rank, world_size, args):
+    dist.init_process_group(
+        "nccl",
+        rank=rank,
+        world_size=world_size,
+        init_method="tcp://localhost:54328",
     )
 
-    valid_dataloader = DataLoader(
-        dataset=initialize_config(config["validation_dataset"]),
-        num_workers=1,
-        batch_size=1
+    log_dir = args.checkpoint_dir / "logs"
+    log_dir.mkdir(exist_ok=True, parents=True)
+
+    if rank == 0:
+        logger.setLevel(logging.DEBUG)
+        handler = logging.FileHandler(log_dir / f"{args.checkpoint_dir.stem}.log")
+        handler.setLevel(logging.DEBUG)
+        formatter = logging.Formatter(
+            "%(asctime)s [%(levelname)s] %(message)s", datefmt="%m/%d/%Y %I:%M:%S"
+        )
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+    else:
+        logger.setLevel(logging.ERROR)
+
+    writer = SummaryWriter(log_dir) if rank == 0 else None
+
+    generator = UNet().to(rank)
+
+    optimizer_generator = optim.AdamW(
+        generator.parameters(),
+        lr=BASE_LEARNING_RATE if not args.finetune else FINETUNE_LEARNING_RATE,
+        betas=BETAS,
+        weight_decay=WEIGHT_DECAY,
     )
 
-    model = initialize_config(config["model"])
-
-    optimizer = torch.optim.Adam(
-        params=model.parameters(),
-        lr=config["optimizer"]["lr"],
-        betas=(config["optimizer"]["beta1"], config["optimizer"]["beta2"])
+    scheduler_generator = optim.lr_scheduler.ExponentialLR(
+        optimizer_generator, gamma=LEARNING_RATE_DECAY
+    )
+    train_dataset = WavDataset(
+        ori_wavs_dir=args.dataset_dir,
+        exp_wavs_dir=args.exp_wavs_dir,
+        segment_length=SEGMENT_LENGTH,
+        sample_rate=SAMPLE_RATE,
+        hop_length=HOP_LENGTH,
+        train=True,
+    )
+    train_sampler = DistributedSampler(train_dataset, drop_last=True)
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=BATCH_SIZE,
+        sampler=train_sampler,
+        num_workers=8,
+        pin_memory=True,
+        shuffle=False,
+        drop_last=True,
     )
 
-    loss_function = initialize_config(config["loss_function"])
-
-    trainer_class = initialize_config(config["trainer"], pass_args=False)
-
-    trainer = trainer_class(
-        config=config,
-        resume=resume,
-        model=model,
-        loss_function=loss_function,
-        optimizer=optimizer,
-        train_dataloader=train_dataloader,
-        validation_dataloader=valid_dataloader
+    validation_dataset = WavDataset(
+        ori_wavs_dir=args.dataset_dir,
+        exp_wavs_dir=args.exp_wavs_dir,
+        segment_length=SEGMENT_LENGTH,
+        sample_rate=SAMPLE_RATE,
+        hop_length=HOP_LENGTH,
+        train=False,
+    )
+    validation_loader = DataLoader(
+        validation_dataset,
+        batch_size=1,
+        shuffle=False,
+        num_workers=8,
+        pin_memory=True,
     )
 
-    trainer.train()
+    if args.resume is not None:
+        checkpoint = torch.load(args.resume, map_location={"cuda:0": f"cuda:{rank}"})
+        generator.load_state_dict(checkpoint["generator"]["model"])
+        optimizer_generator.load_state_dict(checkpoint["generator"]["optimizer"])
+        scheduler_generator.load_state_dict(checkpoint["generator"]["scheduler"])
+        global_step, best_loss = checkpoint["step"], checkpoint["loss"]
+    else:
+        global_step, best_loss = 0, float("inf")
+
+    # generator = DDP(generator, device_ids=[rank])
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Wave-U-Net for Speech Enhancement")
-    parser.add_argument("-C", "--configuration", required=True, type=str, help="Configuration (*.json).")
-    parser.add_argument("-R", "--resume", action="store_true", help="Resume experiment from latest checkpoint.")
+    # if args.finetune:
+    #     global_step, best_loss = 0, float("inf")
+
+    n_epochs = EPOCHS
+    start_epoch = global_step // len(train_loader) + 1
+
+    logger.info("**" * 40)
+    logger.info(f"batch size: {BATCH_SIZE}")
+    logger.info(f"iterations per epoch: {len(train_loader)}")
+    logger.info(f"total of epochs: {n_epochs}")
+    logger.info(f"started at epoch: {start_epoch}")
+    logger.info("**" * 40 + "\n")
+
+    for epoch in range(start_epoch, n_epochs + 1):
+        train_sampler.set_epoch(epoch)
+
+        generator.train()
+        average_loss_mel = average_loss_generator = 0
+        for i, (_, src_wav, tgt_wav) in enumerate(train_loader, 1):
+            src_wav, tgt_wav = src_wav.to(rank), tgt_wav.to(rank)
+
+            out = generator(src_wav)
+
+            # Generator
+            optimizer_generator.zero_grad()
+
+            loss_generator = F.l1_loss(out, tgt_wav)
+            loss_generator.backward()
+            optimizer_generator.step()
+
+            global_step += 1
+
+            average_loss_generator += (
+                loss_generator.item() - average_loss_generator
+            ) / i
+
+            if rank == 0:
+                if global_step % LOG_INTERVAL == 0:
+                    writer.add_scalar(
+                        "train/loss_generator",
+                        loss_generator.item(),
+                        global_step,
+                    )
+
+            if global_step % VALIDATION_INTERVAL == 0:
+                generator.eval()
+
+                average_validation_loss = 0
+                for j, (wavs, mels, tgts) in enumerate(validation_loader, 1):
+                    wavs, mels, tgts = wavs.to(rank), mels.to(rank), tgts.to(rank)
+
+                    with torch.no_grad():
+                        wavs_ = generator(mels.squeeze(1))
+
+                    if rank == 0:
+                        if j <= NUM_GENERATED_EXAMPLES:
+                            writer.add_audio(
+                                f"generated/wav_{j}",
+                                wavs_.squeeze(0),
+                                global_step,
+                                sample_rate=16000,
+                            )
+                            writer.add_figure(
+                                f"generated/mel_{j}",
+                                plot_spectrogram(mels_.squeeze().cpu().numpy()),
+                                global_step,
+                            )
+
+                generator.train()
+
+                if rank == 0:
+                    writer.add_scalar(
+                        "validation/mel_loss", average_validation_loss, global_step
+                    )
+                    logger.info(
+                        f"valid -- epoch: {epoch}, mel loss: {average_validation_loss:.4f}"
+                    )
+
+                new_best = best_loss > average_validation_loss
+                if new_best or global_step % CHECKPOINT_INTERVAL == 0:
+                    if new_best:
+                        logger.info("-------- new best model found!")
+                        best_loss = average_validation_loss
+
+                    if rank == 0:
+                        save_checkpoint(
+                            checkpoint_dir=args.checkpoint_dir,
+                            generator=generator,
+                            discriminator=discriminator,
+                            optimizer_generator=optimizer_generator,
+                            optimizer_discriminator=optimizer_discriminator,
+                            scheduler_generator=scheduler_generator,
+                            scheduler_discriminator=scheduler_discriminator,
+                            step=global_step,
+                            loss=average_validation_loss,
+                            best=new_best,
+                            logger=logger,
+                        )
+
+        scheduler_generator.step()
+
+        logger.info(
+            f"train -- epoch: {epoch}, mel loss: {average_loss_mel:.4f}, generator loss: {average_loss_generator:.4f}"
+        )
+
+    dist.destroy_process_group()
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Train or finetune HiFi-GAN.")
+    parser.add_argument(
+        "--dataset_dir",
+        default='/mnt/workspace/lijiaqi/attack/PGD_XVEC-20230321145333_eps-0.005-maxiter-10/*.wav',
+        metavar="dataset-dir",
+        help="path to the preprocessed data directory",
+        type=str,
+    )
+    parser.add_argument(
+        "--exp_wavs_dir",
+        default=str('/mnt/workspace/lijiaqi/device_recordings/recovered_pulse/iphone_pgd_xvec_k40s_0.5m/*.wav'),
+        metavar="dataset-dir",
+        help="path to the preprocessed data directory",
+        type=str,
+    )
+    parser.add_argument(
+        "--checkpoint_dir",
+        default='/mnt/workspace/lijiaqi/hifigan/checkpoints/0607',
+        metavar="checkpoint-dir",
+        help="path to the checkpoint directory",
+        type=Path,
+    )
+    parser.add_argument(
+        "--resume",
+        default=None,
+        help="path to the checkpoint to resume from",
+        type=Path,
+    )
+    parser.add_argument(
+        "--finetune",
+        default=False,
+        help="whether to finetune (note that a resume path must be given)",
+        action="store_true",
+    )
     args = parser.parse_args()
 
-    configuration = json5.load(open(args.configuration))
-    configuration["experiment_name"], _ = os.path.splitext(os.path.basename(args.configuration))
-    configuration["config_path"] = args.configuration
+    # display training setup info
+    logger.info(f"PyTorch version: {torch.__version__}")
+    logger.info(f"CUDA version: {torch.version.cuda}")
+    logger.info(f"CUDNN version: {torch.backends.cudnn.version()}")
+    logger.info(f"CUDNN enabled: {torch.backends.cudnn.enabled}")
+    logger.info(f"CUDNN deterministic: {torch.backends.cudnn.deterministic}")
+    logger.info(f"CUDNN benchmark: {torch.backends.cudnn.benchmark}")
+    logger.info(f"# of GPUS: {torch.cuda.device_count()}")
 
-    main(configuration, resume=args.resume)
+    # clear handlers
+    logger.handlers.clear()
+
+    world_size = torch.cuda.device_count()
+    # mp.spawn(
+    #     train_model,
+    #     args=(world_size, args),
+    #     nprocs=world_size,
+    #     join=True,
+    # )
+    train_model(0,1,args)

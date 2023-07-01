@@ -4,96 +4,90 @@ import random
 import numpy as np
 import torch
 import torch.nn.functional as F
+import glob
 
 from torch.utils.data import Dataset
 
 import torchaudio
 import torchaudio.transforms as transforms
 
-
 class WavDataset(Dataset):
     def __init__(
         self,
-        ori_wavs_dir: Path,
-        exp_wavs_dir: Path,
+        ori_wavs_dir: str,
+        exp_wavs_dir: str,
         segment_length: int,
         sample_rate: int,
         hop_length: int,
         train: bool = True,
-        finetune: bool = False,
+        eval_size=500,
     ):
-        self.ori_wavs_dir = ori_wavs_dir
+        # self.ori_wavs_dir = glob.glob(ori_wavs_dir)
         # self.mels_dir = ori_wavs_dir / "mels"
-        self.exp_wavs_dir = exp_wavs_dir
-        # self.data_dir = self.wavs_dir if not finetune else self.mels_dir
+        # self.exp_wavs_dir = exp_wavs_dir
 
         self.segment_length = segment_length
         self.sample_rate = sample_rate
         self.hop_length = hop_length
         self.train = train
-        self.finetune = finetune
+        self.finetune = True
 
-        suffix = ".wav"
+        # suffix = ".wav"
         # suffix = ".wav" if not finetune else ".npy"
-        pattern = f"dev/*{suffix}" if not train else f"*{suffix}"
+        # pattern = f"dev/*{suffix}" if not train else f"*{suffix}"
 
-        self.ori_metadata = [
-            path.relative_to(self.ori_wavs_dir).with_suffix("")
-            for path in self.ori_wavs_dir.rglob(pattern)
-        ]
-        self.exp_metadata = [
-            path.relative_to(self.exp_wavs_dir).with_suffix("")
-            for path in self.exp_wavs_dir.rglob(pattern)
-        ]
-
-        self.logmel = LogMelSpectrogram()
+        self.ori_metadata = glob.glob(ori_wavs_dir)
+        self.ori_metadata = self.ori_metadata[:eval_size] if not train else self.ori_metadata[eval_size:]
+        self.exp_metadata = glob.glob(exp_wavs_dir)
+        self.exp_metadata = self.exp_metadata[:eval_size] if not train else self.exp_metadata[eval_size:]
+        assert len(self.ori_metadata) == len(self.exp_metadata)
+        for i in range(len(self.ori_metadata)):
+            assert self.ori_metadata[i].split('/')[-1] == self.exp_metadata[i].split('/')[-1]
 
     def __len__(self):
         return len(self.ori_metadata)
 
     def __getitem__(self, index):
-        path = self.ori_metadata[index]
-        ori_wav_path = self.ori_wavs_dir / path
-        path = self.exp_metadata[index]
-        exp_wav_path = self.exp_wavs_dir / path
+        # path = self.ori_metadata[index]
+        ori_wav_path = self.ori_metadata[index]
+        # path = self.exp_metadata[index]
+        exp_wav_path = self.exp_metadata[index]
 
-        info = torchaudio.info(ori_wav_path.with_suffix(".wav"))
+        info = torchaudio.info(ori_wav_path)
         if info.sample_rate != self.sample_rate:
             raise ValueError(
                 f"Sample rate {info.sample_rate} doesn't match target of {self.sample_rate}"
             )
-        info = torchaudio.info(exp_wav_path.with_suffix(".wav"))
+        info = torchaudio.info(exp_wav_path)
         if info.sample_rate != self.sample_rate:
             raise ValueError(
                 f"Sample rate {info.sample_rate} doesn't match target of {self.sample_rate}"
             )
 
-        if self.finetune:
-            # mel_path = self.mels_dir / path
-            # src_logmel = torch.from_numpy(np.load(mel_path.with_suffix(".npy")))
-            # src_logmel = src_logmel.unsqueeze(0)
-            wav, _ = torchaudio.load(
-                filepath=ori_wav_path.with_suffix(".wav"),
-            )
-            src_logmel = self.logmel(wav.unsqueeze(0)).squeeze(0)
-
-            mel_frames_per_segment = math.ceil(self.segment_length / self.hop_length)
-            mel_diff = src_logmel.size(-1) - mel_frames_per_segment if self.train else 0
-            mel_offset = random.randint(0, max(mel_diff, 0))
-
-            frame_offset = self.hop_length * mel_offset
-        else:
-            frame_diff = info.num_frames - self.segment_length
-            frame_offset = random.randint(0, max(frame_diff, 0))
-
-        wav, _ = torchaudio.load(
-            filepath=exp_wav_path.with_suffix(".wav"),
-            frame_offset=frame_offset if self.train else 0,
-            num_frames=self.segment_length if self.train else -1,
+        # mel_path = self.mels_dir / path
+        # src_logmel = torch.from_numpy(np.load(mel_path.with_suffix(".npy")))
+        # src_logmel = src_logmel.unsqueeze(0)
+        src_wav, _ = torchaudio.load(
+            filepath=ori_wav_path,
         )
+        tgt_wav, _ = torchaudio.load(
+            filepath=exp_wav_path,
+        )
+        assert src_wav.size() == tgt_wav.size()
+        frame_diff = src_wav.shape[-1] - self.segment_length
+        frame_offset = random.randint(0, max(frame_diff, 0))
+        # The input of the model should be fixed length.
+        # if src_wav.size(-1) % self.segment_length != 0:
+        #     padded_length = self.segment_length - (src_wav.size(-1) % self.segment_length)
+        #     src_wav = torch.cat([src_wav, torch.zeros(1, 1, padded_length, device=self.device)], dim=-1)
+        #     tgt_wav = torch.cat([tgt_wav, torch.zeros(1, 1, padded_length, device=self.device)], dim=-1)
 
-        if wav.size(-1) < self.segment_length:
-            wav = F.pad(wav, (0, self.segment_length - wav.size(-1)))
+        if src_wav.size(-1) <= self.segment_length:
+            src_wav = F.pad(src_wav, (0, self.segment_length - src_wav.size(-1)))
+            tgt_wav = F.pad(tgt_wav, (0, self.segment_length - tgt_wav.size(-1)))
+        else:
+            src_wav = src_wav[:, frame_offset:frame_offset+self.segment_length]
+            tgt_wav = tgt_wav[:, frame_offset:frame_offset+self.segment_length]
 
         # if not self.finetune and self.train:
         # if self.train:
@@ -101,22 +95,4 @@ class WavDataset(Dataset):
         #     flip = -1 if random.random() > 0.5 else 1
         #     wav = flip * gain * wav / wav.abs().max()
 
-        tgt_logmel = self.logmel(wav.unsqueeze(0)).squeeze(0)
-
-        if self.finetune:
-            if self.train:
-                src_logmel = src_logmel[
-                    :, :, mel_offset : mel_offset + mel_frames_per_segment
-                ]
-
-            if src_logmel.size(-1) < mel_frames_per_segment:
-                src_logmel = F.pad(
-                    src_logmel,
-                    (0, mel_frames_per_segment - src_logmel.size(-1)),
-                    "constant",
-                    src_logmel.min(),
-                )
-        else:
-            src_logmel = tgt_logmel.clone()
-
-        return wav, src_logmel, tgt_logmel
+        return src_wav, src_wav, tgt_wav
