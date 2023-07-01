@@ -22,6 +22,7 @@ from hifigan.discriminator import (
 from hifigan.dataset import MelDataset, LogMelSpectrogram
 from hifigan.utils import load_checkpoint, save_checkpoint, plot_spectrogram
 
+from .unet.unet import UNet
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -48,7 +49,7 @@ def train_model(rank, world_size, args):
         "nccl",
         rank=rank,
         world_size=world_size,
-        init_method="tcp://localhost:54321",
+        init_method="tcp://localhost:54328",
     )
 
     log_dir = args.checkpoint_dir / "logs"
@@ -69,16 +70,9 @@ def train_model(rank, world_size, args):
     writer = SummaryWriter(log_dir) if rank == 0 else None
 
     generator = HifiganGenerator().to(rank)
-    discriminator = HifiganDiscriminator().to(rank)
 
     optimizer_generator = optim.AdamW(
         generator.parameters(),
-        lr=BASE_LEARNING_RATE if not args.finetune else FINETUNE_LEARNING_RATE,
-        betas=BETAS,
-        weight_decay=WEIGHT_DECAY,
-    )
-    optimizer_discriminator = optim.AdamW(
-        discriminator.parameters(),
         lr=BASE_LEARNING_RATE if not args.finetune else FINETUNE_LEARNING_RATE,
         betas=BETAS,
         weight_decay=WEIGHT_DECAY,
@@ -87,10 +81,6 @@ def train_model(rank, world_size, args):
     scheduler_generator = optim.lr_scheduler.ExponentialLR(
         optimizer_generator, gamma=LEARNING_RATE_DECAY
     )
-    scheduler_discriminator = optim.lr_scheduler.ExponentialLR(
-        optimizer_discriminator, gamma=LEARNING_RATE_DECAY
-    )
-
     train_dataset = MelDataset(
         ori_wavs_dir=args.dataset_dir,
         exp_wavs_dir=args.exp_wavs_dir,
@@ -147,7 +137,6 @@ def train_model(rank, world_size, args):
         global_step, best_loss = 0, float("inf")
 
     generator = DDP(generator, device_ids=[rank])
-    discriminator = DDP(discriminator, device_ids=[rank])
 
 
     # if args.finetune:
@@ -167,13 +156,9 @@ def train_model(rank, world_size, args):
         train_sampler.set_epoch(epoch)
 
         generator.train()
-        discriminator.train()
-        average_loss_mel = average_loss_discriminator = average_loss_generator = 0
+        average_loss_mel = average_loss_generator = 0
         for i, (wavs, mels, tgts) in enumerate(train_loader, 1):
             wavs, mels, tgts = wavs.to(rank), mels.to(rank), tgts.to(rank)
-
-            # Discriminator
-            optimizer_discriminator.zero_grad()
 
             wavs_ = generator(mels.squeeze(1))
             mels_ = melspectrogram(wavs_)
