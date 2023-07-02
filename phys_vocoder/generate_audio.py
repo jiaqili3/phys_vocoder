@@ -13,17 +13,17 @@ import torch
 from hifigan.generator import HifiganGenerator, HifiganEndToEnd
 
 from hifigan.dataset import MelDataset, LogMelSpectrogram
-
+from phys_vocoder.unet.unet import UNet
 import glob
 import os
 
 device = 'cuda:0'
 
 def generate(args):
-    generator = HifiganEndToEnd().to(device)
+    generator = UNet().to(device)
     generator.eval()
     print("Loading checkpoint")
-    generator.load_model(args.checkpoint, device)
+    generator.load_state_dict(torch.load(args.checkpoint, map_location=device)["generator"]["model"])
     # checkpoint = torch.load(args.checkpoint, map_location=device)
     # generator.load_state_dict(checkpoint["generator"]["model"])
 
