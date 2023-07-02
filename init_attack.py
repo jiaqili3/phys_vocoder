@@ -15,7 +15,7 @@ config.phys_vocoder_model = HifiganEndToEnd
 # HifiGAN
 if config.phys_vocoder_model == HifiganEndToEnd:
     config.phys_vocoder_model = HifiganEndToEnd()
-    config.phys_vocoder_model.load_model('/mnt/workspace/lijiaqi/hifigan/checkpoints/0607/model-370000.pt')
+    config.phys_vocoder_model.load_model('/mntcephfs/lab_data/lijiaqi/hifigan-checkpoints/0630/model-115000.pt')
 
 # ---------------------------------------- ASV model ---------------------------------------- #
 from attack.models.RawNet import RawNet3
