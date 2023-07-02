@@ -1,4 +1,4 @@
-from initializer import config
+from init_attack import config
 import torch
 import torchaudio
 from torch.utils.data import DataLoader

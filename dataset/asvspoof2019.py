@@ -51,8 +51,8 @@ class ASVspoof2019(Dataset):
                     attack_file_dir,
                     line[0] + '.wav',
                 )
-                eval_waveform, _ = load_waveform_torch(eval_file_path)
-                enroll_waveform, _ = load_waveform_torch(self._flist[self.fnamepair_to_idx[line[0]]][0])
+                eval_waveform, _ = torchaudio.load(eval_file_path)
+                enroll_waveform, _ = torchaudio.load(self._flist[self.fnamepair_to_idx[line[0]]][0])
                 
                 if len(eval_waveform.size()) == 2:
                     eval_waveform = eval_waveform.unsqueeze(1)
