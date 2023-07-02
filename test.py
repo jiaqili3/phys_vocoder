@@ -51,12 +51,12 @@ for adv_dir in config.adv_dirs:
         adv_dir = adv_dir[:-1]  # not include '/'
     attacker_info = adv_dir.split('/')[-1]  # PGD_XVEC-20230305192215_eps-0.001
 
-    logging.basicConfig(filename=f'./transfer_attack_exps/{attacker_info}_versus_{model.__class__.__name__}/log', encoding='utf-8', level=logging.DEBUG)
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.INFO)
 
     output_dir = f'./transfer_attack_exps/{attacker_info}_versus_{model.__class__.__name__}'
     os.makedirs(output_dir, exist_ok=True)
+    logging.basicConfig(filename=f'./transfer_attack_exps/{attacker_info}_versus_{model.__class__.__name__}/log', encoding='utf-8', level=logging.DEBUG)
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
 
     # data
     dataset_name = 'ASVspoof2019'

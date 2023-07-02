@@ -6,7 +6,10 @@ import torch
 config = edict()
 
 config.adv_dirs = [
-    '/mnt/workspace/lijiaqi/phys_vocoder/adver_out/ECAPATDNN_10_0.0004_0.005',
+    '/mnt/workspace/lijiaqi/phys_vocoder/adver_out/hifigan0_ECAPATDNN_10_0.0004_0.005',
+    '/mnt/workspace/lijiaqi/phys_vocoder/adver_out/hifigan0_RawNet3_300_0.0004_0.02',
+    '/mnt/workspace/lijiaqi/phys_vocoder/adver_out/hifigan0_ResNetSE34V2_10_0.0004_0.005',
+    '/mnt/workspace/lijiaqi/phys_vocoder/adver_out/hifigan0_XVEC_10_0.0004_0.005',
     ]
 
 # ---------------------------------------- ASV model ---------------------------------------- #
@@ -16,6 +19,7 @@ from attack.models.ResNetSE34V2 import ResNetSE34V2
 from attack.models.tdnn import XVEC
 from attack.models.model_config import config as model_config
 
+# config.models = [ResNetSE34V2, RawNet3, ECAPATDNN, XVEC]
 config.model = ResNetSE34V2
 
 if config.model == RawNet3:

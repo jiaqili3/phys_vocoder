@@ -3,3 +3,6 @@ __pycache__
 log
 attackResult.txt
 runs
+transferAttackResult.txt
+transfer_attack_exps
+adver_out
