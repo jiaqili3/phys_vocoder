@@ -17,7 +17,7 @@ import os
 sys.path.append('..')
 sys.path.append('.')
 from phys_vocoder.dataset import WavDataset
-from hifigan.utils import load_checkpoint, save_checkpoint, plot_spectrogram
+# from hifigan.utils import load_checkpoint, save_checkpoint, plot_spectrogram
 
 from phys_vocoder.unet.unet import UNet
 
@@ -25,8 +25,8 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
-BATCH_SIZE = 8
-SEGMENT_LENGTH = 32768
+BATCH_SIZE = 64
+SEGMENT_LENGTH = 32768*2
 HOP_LENGTH = 160
 SAMPLE_RATE = 16000
 BASE_LEARNING_RATE = 2e-4
