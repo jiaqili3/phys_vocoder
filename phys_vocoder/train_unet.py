@@ -13,6 +13,7 @@ import torch.multiprocessing as mp
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 import sys
+import os
 sys.path.append('..')
 sys.path.append('.')
 from phys_vocoder.dataset import WavDataset
@@ -24,8 +25,8 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
-BATCH_SIZE = 4
-SEGMENT_LENGTH = 16384
+BATCH_SIZE = 8
+SEGMENT_LENGTH = 32768
 HOP_LENGTH = 160
 SAMPLE_RATE = 16000
 BASE_LEARNING_RATE = 2e-4
@@ -48,6 +49,7 @@ def train_model(rank, world_size, args):
         init_method="tcp://localhost:54328",
     )
 
+    os.makedirs(args.checkpoint_dir, exist_ok=True)
     log_dir = args.checkpoint_dir / "logs"
     log_dir.mkdir(exist_ok=True, parents=True)
 
@@ -121,7 +123,7 @@ def train_model(rank, world_size, args):
     else:
         global_step, best_loss = 0, float("inf")
 
-    # generator = DDP(generator, device_ids=[rank])
+    generator = DDP(generator, device_ids=[rank])
 
 
     # if args.finetune:
@@ -141,7 +143,7 @@ def train_model(rank, world_size, args):
         train_sampler.set_epoch(epoch)
 
         generator.train()
-        average_loss_mel = average_loss_generator = 0
+        average_loss_generator = 0
         for i, (_, src_wav, tgt_wav) in enumerate(train_loader, 1):
             src_wav, tgt_wav = src_wav.to(rank), tgt_wav.to(rank)
 
@@ -172,34 +174,35 @@ def train_model(rank, world_size, args):
                 generator.eval()
 
                 average_validation_loss = 0
-                for j, (wavs, mels, tgts) in enumerate(validation_loader, 1):
-                    wavs, mels, tgts = wavs.to(rank), mels.to(rank), tgts.to(rank)
+                for j, (_, src, tgt) in enumerate(validation_loader, 1):
+                    src, tgt = src.to(rank), tgt.to(rank)
 
                     with torch.no_grad():
-                        wavs_ = generator(mels.squeeze(1))
+                        out = generator(src)
+
+                    validation_loss = F.l1_loss(out, tgt)
+                    average_validation_loss += (
+                        validation_loss.item() - average_validation_loss
+                    ) / j
+
 
                     if rank == 0:
                         if j <= NUM_GENERATED_EXAMPLES:
                             writer.add_audio(
                                 f"generated/wav_{j}",
-                                wavs_.squeeze(0),
+                                out,
                                 global_step,
                                 sample_rate=16000,
-                            )
-                            writer.add_figure(
-                                f"generated/mel_{j}",
-                                plot_spectrogram(mels_.squeeze().cpu().numpy()),
-                                global_step,
                             )
 
                 generator.train()
 
                 if rank == 0:
                     writer.add_scalar(
-                        "validation/mel_loss", average_validation_loss, global_step
+                        "validation/loss", average_validation_loss, global_step
                     )
                     logger.info(
-                        f"valid -- epoch: {epoch}, mel loss: {average_validation_loss:.4f}"
+                        f"valid -- epoch: {epoch}, l1 loss: {average_validation_loss:.4f}"
                     )
 
                 new_best = best_loss > average_validation_loss
@@ -209,24 +212,21 @@ def train_model(rank, world_size, args):
                         best_loss = average_validation_loss
 
                     if rank == 0:
-                        save_checkpoint(
-                            checkpoint_dir=args.checkpoint_dir,
-                            generator=generator,
-                            discriminator=discriminator,
-                            optimizer_generator=optimizer_generator,
-                            optimizer_discriminator=optimizer_discriminator,
-                            scheduler_generator=scheduler_generator,
-                            scheduler_discriminator=scheduler_discriminator,
-                            step=global_step,
-                            loss=average_validation_loss,
-                            best=new_best,
-                            logger=logger,
-                        )
+                        state = {
+                            "generator": {
+                                "model": generator.module.state_dict(),
+                                "optimizer": optimizer_generator.state_dict(),
+                                "scheduler": scheduler_generator.state_dict(),
+                            },
+                            "step": global_step,
+                            "loss": average_validation_loss,
+                        }
+                        torch.save(state, args.checkpoint_dir / f"model-{global_step}.pt")
 
         scheduler_generator.step()
 
         logger.info(
-            f"train -- epoch: {epoch}, mel loss: {average_loss_mel:.4f}, generator loss: {average_loss_generator:.4f}"
+            f"train -- epoch: {epoch}, generator loss: {average_loss_generator:.4f}"
         )
 
     dist.destroy_process_group()
@@ -250,7 +250,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--checkpoint_dir",
-        default='/mnt/workspace/lijiaqi/hifigan/checkpoints/0607',
+        default='/mnt/workspace/lijiaqi/unet_checkpoints/0702',
         metavar="checkpoint-dir",
         help="path to the checkpoint directory",
         type=Path,
@@ -282,10 +282,10 @@ if __name__ == "__main__":
     logger.handlers.clear()
 
     world_size = torch.cuda.device_count()
-    # mp.spawn(
-    #     train_model,
-    #     args=(world_size, args),
-    #     nprocs=world_size,
-    #     join=True,
-    # )
-    train_model(0,1,args)
+    mp.spawn(
+        train_model,
+        args=(world_size, args),
+        nprocs=world_size,
+        join=True,
+    )
+    # train_model(0,1,args)
