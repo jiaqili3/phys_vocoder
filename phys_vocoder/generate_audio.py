@@ -8,11 +8,16 @@ from hifigan.dataset import LogMelSpectrogram
 import argparse
 import logging
 from pathlib import Path
-
+import torch.nn.functional as F
 import torch
 from hifigan.generator import HifiganGenerator, HifiganEndToEnd
 
 from hifigan.dataset import MelDataset, LogMelSpectrogram
+
+import sys
+sys.path.append('..')
+sys.path.append('.')
+
 from phys_vocoder.unet.unet import UNet
 import glob
 import os
@@ -30,9 +35,19 @@ def generate(args):
     paths = glob.glob(str(args.in_dir))
     for path in paths:
         wav, _ = torchaudio.load(path)
+        wav = wav.reshape(1,1,-1)
+        # pad
+        segment_length = 32768*2
+        if segment_length < wav.size(-1):
+            segment_length = segment_length * 2
+        if segment_length < wav.size(-1):
+            segment_length = segment_length * 2
+        assert segment_length >= wav.size(-1)
+        ori_size = wav.size(-1)
+        wav = F.pad(wav, (0, segment_length - wav.size(-1)))
         wav = wav.to(device)
         wavs = generator(wav).cpu()
-        torchaudio.save(os.path.join(str(args.out_dir), str(Path(path).name)), wavs, 16000)
+        torchaudio.save(os.path.join(str(args.out_dir), str(Path(path).name)), wavs[0,:,:ori_size], 16000)
         print(f'saved to {os.path.join(str(args.out_dir), str(Path(path).name))}')
 
 
@@ -58,7 +73,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--checkpoint",
-        default='/mnt/workspace/lijiaqi/hifigan/checkpoints/0607/model-370000.pt',
+        default='/mnt/workspace/lijiaqi/unet_checkpoints/0702/model-55000.pt',
         type=Path,
     )
     parser.add_argument(
@@ -72,7 +87,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--out_dir",
         metavar="out-dir",
-        default="/mnt/workspace/lijiaqi/hifigan/out/0608",
+        default="/mnt/workspace/lijiaqi/hifigan/out",
         type=Path,
     )
     args = parser.parse_args()
