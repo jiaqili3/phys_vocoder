@@ -18,7 +18,7 @@ class UNetEndToEnd(nn.Module):
         assert segment_length >= x.size(-1)
         ori_size = x.size(-1)
         x = F.pad(x, (0, segment_length - x.size(-1)))
-        return self.unet(x)[0,:,:ori_size]
+        return self.unet(x)[:,:,:ori_size]
     def load_model(self, checkpoint_path: str, device:str='cpu') -> None:
         self.unet.load_state_dict(torch.load(checkpoint_path, map_location=device)["generator"]["model"])
 

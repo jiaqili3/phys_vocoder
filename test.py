@@ -54,7 +54,7 @@ for adv_dir in config.adv_dirs:
 
     output_dir = f'./transfer_attack_exps/{attacker_info}_versus_{model.__class__.__name__}'
     os.makedirs(output_dir, exist_ok=True)
-    logging.basicConfig(filename=f'./transfer_attack_exps/{attacker_info}_versus_{model.__class__.__name__}/log', encoding='utf-8', level=logging.DEBUG)
+    logging.basicConfig(filename=f'./transfer_attack_exps/{attacker_info}_versus_{model.__class__.__name__}/log', encoding='utf-8', level=logging.DEBUG, force=True)
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
 

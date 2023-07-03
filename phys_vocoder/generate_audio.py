@@ -35,7 +35,7 @@ def generate(args):
         wav, _ = torchaudio.load(path)
         wav = wav.to(device)
         out = generator(wav).cpu()
-        torchaudio.save(os.path.join(str(args.out_dir), str(Path(path).name)), out, 16000)
+        torchaudio.save(os.path.join(str(args.out_dir), str(Path(path).name)), out[0], 16000)
         print(f'saved to {os.path.join(str(args.out_dir), str(Path(path).name))}')
 
 

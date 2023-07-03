@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader
 import os
 
 from attack.attacks.pgd import PGD
-
+import logging
 from dataset.asvspoof2019 import ASVspoof2019
 
 device = 'cuda:0'
@@ -16,10 +16,13 @@ phys_vocoder = config.phys_vocoder_model
 if phys_vocoder is not None:
     phys_vocoder = phys_vocoder.to(device)
 
+
 adver_dir = config.attack.adv_dir
-adver_dir = os.path.join(adver_dir, f'{model.__class__.__name__}_{config.attack.steps}_{config.attack.alpha}_{config.attack.eps}')
+adver_dir = os.path.join(adver_dir, f'{model.__class__.__name__}_{config.phys_vocoder_model.__class__.__name__}_{config.attack.steps}_{config.attack.alpha}_{config.attack.eps}')
 os.makedirs(adver_dir, exist_ok=True)
+logging.basicConfig(filename=f'{adver_dir}/log', encoding='utf-8', level=logging.DEBUG, force=True)
 print(f'adv samples saved to {adver_dir}')
+logging.info(config.attack)
 
 class CombinedModel(torch.nn.Module):
     def __init__(self, model, phys_vocoder):
@@ -27,7 +30,7 @@ class CombinedModel(torch.nn.Module):
         self.phys_vocoder = phys_vocoder
         self.model = model
         if self.phys_vocoder is not None:
-            print('using physical vocoder')
+            logging.info('using physical vocoder')
     def forward(self, x1, x2):
         # x1 enroll, x2 test
         # return (decisions, cos sim)
@@ -49,8 +52,8 @@ dataset_name = 'ASVspoof2019'
 dataset_config = config.data[dataset_name].dataset
 dataset = ASVspoof2019(**dataset_config)
 dataloader = DataLoader(dataset, num_workers=4, batch_size=1, shuffle=False)
-print('dataset: {}'.format(dataset_name))
-print('dataset size: {}'.format(len(dataset)))
+logging.info('dataset: {}'.format(dataset_name))
+logging.info('dataset size: {}'.format(len(dataset)))
 
 def save_audio(advers, spk1_file_ids, spk2_file_ids, root, success, fs=16000):
     result_file_path = os.path.join(root, 'attackResult.txt')
@@ -86,7 +89,7 @@ for runno, item in enumerate(dataloader):
 
 
     # decision, score = model.make_decision_SV(x1, x2)
-    # print(score)
+    # logging.info(score)
     # continue
 
 
@@ -101,7 +104,7 @@ for runno, item in enumerate(dataloader):
         adver_path = os.path.join(adver_dir, file_name + ".wav")
         # skip already existing ones
         if os.path.exists(adver_path):
-            print('adversarial audio already exists: {}'.format(adver_path))
+            logging.info('adversarial audio already exists: {}'.format(adver_path))
             flag = True
             break
     if flag:
