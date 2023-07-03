@@ -16,7 +16,7 @@ config.adv_dirs = [
 from attack.models.RawNet import RawNet3
 from attack.models.ECAPATDNN import ECAPATDNN
 from attack.models.ResNetSE34V2 import ResNetSE34V2
-from attack.models.tdnn import XVEC
+from attack.models.tdnn import XVEC, XVEC1
 from attack.models.model_config import config as model_config
 
 # config.models = [ResNetSE34V2, RawNet3, ECAPATDNN, XVEC]
@@ -38,6 +38,10 @@ elif config.model == XVEC:
     config.model = XVEC(**model_config['XVEC'])
     config.model.load_state_dict(torch.load('./pretrained_models/XVEC.pth'))
     config.model.threshold = 0.879676103591919
+elif config.model == XVEC1:
+    # XVEC1
+    config.model.load_state_dict(torch.load('./pretrained_models/XVEC1.model'))
+    config.model.threshold = 0.28246
 
 # ResNetSE34V2
 # config.model.ResNetSE34V2 = edict()

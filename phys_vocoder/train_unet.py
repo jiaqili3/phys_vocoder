@@ -202,7 +202,7 @@ def train_model(rank, world_size, args):
                         "validation/loss", average_validation_loss, global_step
                     )
                     logger.info(
-                        f"valid -- epoch: {epoch}, l1 loss: {average_validation_loss:.4f}"
+                        f"valid -- epoch: {epoch}, global step: {global_step}, l1 loss: {average_validation_loss:.4f}"
                     )
 
                 new_best = best_loss > average_validation_loss

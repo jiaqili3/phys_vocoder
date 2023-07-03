@@ -21,7 +21,7 @@ adver_dir = config.attack.adv_dir
 adver_dir = os.path.join(adver_dir, f'{model.__class__.__name__}_{config.phys_vocoder_model.__class__.__name__}_{config.attack.steps}_{config.attack.alpha}_{config.attack.eps}')
 os.makedirs(adver_dir, exist_ok=True)
 logging.basicConfig(filename=f'{adver_dir}/log', encoding='utf-8', level=logging.DEBUG, force=True)
-print(f'adv samples saved to {adver_dir}')
+logging.info(f'adv samples saved to {adver_dir}')
 logging.info(config.attack)
 
 class CombinedModel(torch.nn.Module):
@@ -63,7 +63,7 @@ def save_audio(advers, spk1_file_ids, spk2_file_ids, root, success, fs=16000):
         adver_path = os.path.join(root, file_name + ".wav")
         adver = adver.detach().cpu()
         adver = torch.unsqueeze(adver, 0)
-        print(f'saved to {adver_path}')
+        logging.info(f'saved to {adver_path}')
         torchaudio.save(adver_path, adver, fs)
         result_file.write('{} {}\n'.format(file_name, suc))
     result_file.close()
@@ -116,4 +116,4 @@ for runno, item in enumerate(dataloader):
         adver = adver.squeeze(1)
     save_audio(advers=adver, spk1_file_ids=spk1_file_ids, spk2_file_ids=spk2_file_ids, root=adver_dir,success=success)
     success_cnt += sum(success)
-    print('success rate: {}/{}={}'.format(success_cnt, total_cnt, success_cnt / total_cnt))
+    logging.info('success rate: {}/{}={}'.format(int(success_cnt), total_cnt, success_cnt / total_cnt))
