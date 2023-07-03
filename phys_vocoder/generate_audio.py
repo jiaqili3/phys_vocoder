@@ -18,36 +18,24 @@ import sys
 sys.path.append('..')
 sys.path.append('.')
 
-from phys_vocoder.unet.unet import UNet
+from phys_vocoder.unet.unet import UNet, UNetEndToEnd
 import glob
 import os
 
 device = 'cuda:0'
 
 def generate(args):
-    generator = UNet().to(device)
+    generator = UNetEndToEnd().to(device)
     generator.eval()
     print("Loading checkpoint")
-    generator.load_state_dict(torch.load(args.checkpoint, map_location=device)["generator"]["model"])
-    # checkpoint = torch.load(args.checkpoint, map_location=device)
-    # generator.load_state_dict(checkpoint["generator"]["model"])
+    generator.load_model(args.checkpoint, device=device)
 
     paths = glob.glob(str(args.in_dir))
     for path in paths:
         wav, _ = torchaudio.load(path)
-        wav = wav.reshape(1,1,-1)
-        # pad
-        segment_length = 32768*2
-        if segment_length < wav.size(-1):
-            segment_length = segment_length * 2
-        if segment_length < wav.size(-1):
-            segment_length = segment_length * 2
-        assert segment_length >= wav.size(-1)
-        ori_size = wav.size(-1)
-        wav = F.pad(wav, (0, segment_length - wav.size(-1)))
         wav = wav.to(device)
-        wavs = generator(wav).cpu()
-        torchaudio.save(os.path.join(str(args.out_dir), str(Path(path).name)), wavs[0,:,:ori_size], 16000)
+        out = generator(wav).cpu()
+        torchaudio.save(os.path.join(str(args.out_dir), str(Path(path).name)), out, 16000)
         print(f'saved to {os.path.join(str(args.out_dir), str(Path(path).name))}')
 
 
