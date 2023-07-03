@@ -21,7 +21,7 @@ if config.phys_vocoder_model == HifiganEndToEnd:
 # unet
 elif config.phys_vocoder_model == UNetEndToEnd:
     config.phys_vocoder_model = UNetEndToEnd()
-    config.phys_vocoder_model.load_model('/mnt/workspace/lijiaqi/unet_checkpoints/0702/model-55000.pt')
+    config.phys_vocoder_model.load_model('/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0702/model-45000.pt')
 
 # ---------------------------------------- ASV model ---------------------------------------- #
 from attack.models.RawNet import RawNet3
@@ -30,7 +30,7 @@ from attack.models.ResNetSE34V2 import ResNetSE34V2
 from attack.models.tdnn import XVEC
 from attack.models.model_config import config as model_config
 
-config.model = ResNetSE34V2
+config.model = XVEC
 
 if config.model == RawNet3:
     config.model = RawNet3(**model_config['RawNet3'])
@@ -71,11 +71,13 @@ elif config.model == XVEC:
 # ---------------------------------------- Attack ---------------------------------------
 
 config.attack = edict()
-config.attack.adv_dir = '/mnt/workspace/lijiaqi/phys_vocoder/adver_out/'
+config.attack.adv_dir = '/mntcephfs/lab_data/lijiaqi/adver_out/'
 
+# config.attack.steps = 300
 config.attack.steps = 10
 config.attack.alpha = 0.0004
 config.attack.eps = 0.005
+# config.attack.eps = 0.02
 
 
 # config.attack.attack_class = PGD
@@ -117,10 +119,12 @@ config.data.dataset_name = 'ASVspoof2019'
 config.data.ASVspoof2019 = edict()
 config.data.ASVspoof2019.dataset = edict()
 config.data.ASVspoof2019.dataloader = edict()
-config.data.ASVspoof2019.dataset.data_file = '/mnt/workspace/lijiaqi/phys_vocoder/dataset/enroll_eval_pairs.txt'
-config.data.ASVspoof2019.dataset.train_path = '/mnt/workspace/lijiaqi/PA/ASVspoof2019_PA_train/flac'
-config.data.ASVspoof2019.dataset.dev_path = '/mnt/workspace/lijiaqi/PA/ASVspoof2019_PA_dev/flac'
-config.data.ASVspoof2019.dataset.eval_path = '/mnt/workspace/lijiaqi/PA/ASVspoof2019_PA_eval/flac'
+config.data.ASVspoof2019.dataset.data_file = './dataset/enroll_eval_pairs.txt'
+# config
+config.data.ASVspoof2019.dataset.train_path = '/mntnfs/lee_data1/wangli/ASVspoof2019/PA/ASVspoof2019_PA_train/flac'
+config.data.ASVspoof2019.dataset.dev_path = '/mntnfs/lee_data1/wangli/ASVspoof2019/PA/ASVspoof2019_PA_dev/flac'
+config.data.ASVspoof2019.dataset.eval_path = '/mntnfs/lee_data1/wangli/ASVspoof2019/PA/ASVspoof2019_PA_eval/flac'
+
 config.data.ASVspoof2019.dataloader.batch_size = 1
 config.data.ASVspoof2019.waveform_index_spk1 = 0
 config.data.ASVspoof2019.waveform_index_spk2 = 1

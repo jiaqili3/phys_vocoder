@@ -25,7 +25,7 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
-BATCH_SIZE = 64
+BATCH_SIZE = 256
 SEGMENT_LENGTH = 32768*2
 HOP_LENGTH = 160
 SAMPLE_RATE = 16000
@@ -236,21 +236,21 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train or finetune HiFi-GAN.")
     parser.add_argument(
         "--dataset_dir",
-        default='/mnt/workspace/lijiaqi/attack/PGD_XVEC-20230321145333_eps-0.005-maxiter-10/*.wav',
+        default='/mntcephfs/lab_data/wangli/concat/*.wav',
         metavar="dataset-dir",
         help="path to the preprocessed data directory",
         type=str,
     )
     parser.add_argument(
         "--exp_wavs_dir",
-        default=str('/mnt/workspace/lijiaqi/device_recordings/recovered_pulse/iphone_pgd_xvec_k40s_0.5m/*.wav'),
+        default=str('/mntcephfs/lab_data/lijiaqi/ASGSR/device_recordings/recovered/iphone_concat_k40s_0.5m/*.wav'),
         metavar="dataset-dir",
         help="path to the preprocessed data directory",
         type=str,
     )
     parser.add_argument(
         "--checkpoint_dir",
-        default='/mnt/workspace/lijiaqi/unet_checkpoints/0702',
+        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0702',
         metavar="checkpoint-dir",
         help="path to the checkpoint directory",
         type=Path,

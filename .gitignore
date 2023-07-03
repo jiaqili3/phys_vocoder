@@ -6,3 +6,4 @@ runs
 transferAttackResult.txt
 transfer_attack_exps
 adver_out
+*.out

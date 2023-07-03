@@ -11,7 +11,7 @@ from pathlib import Path
 import torch.nn.functional as F
 import torch
 from hifigan.generator import HifiganGenerator, HifiganEndToEnd
-
+import os
 from hifigan.dataset import MelDataset, LogMelSpectrogram
 
 import sys
@@ -29,6 +29,8 @@ def generate(args):
     generator.eval()
     print("Loading checkpoint")
     generator.load_model(args.checkpoint, device=device)
+
+    os.makedirs(args.out_dir, exist_ok=True)
 
     paths = glob.glob(str(args.in_dir))
     for path in paths:
@@ -61,21 +63,21 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--checkpoint",
-        default='/mnt/workspace/lijiaqi/unet_checkpoints/0702/model-55000.pt',
+        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0702/model-45000.pt',
         type=Path,
     )
     parser.add_argument(
         "--in_dir",
         metavar="in-dir",
         help="path to input directory containing the input wavs.",
-        default='/mnt/workspace/lijiaqi/attack/PGD_XVEC-20230321145333_eps-0.005-maxiter-10/dev/*.wav',
+        default='/mntnfs/lee_data1/wangli/ASVspoof2019/PA/ASVspoof2019_PA_dev/wav/*.wav',
         # default='/mnt/workspace/lijiaqi/hifigan/PA_D_0000001.wav_synthesis.wav',
         type=Path,
     )
     parser.add_argument(
         "--out_dir",
         metavar="out-dir",
-        default="/mnt/workspace/lijiaqi/hifigan/out",
+        default="/home/lijiaqi/phys_vocoder/out",
         type=Path,
     )
     args = parser.parse_args()
