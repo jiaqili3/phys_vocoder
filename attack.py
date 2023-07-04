@@ -110,7 +110,8 @@ for runno, item in enumerate(dataloader):
     if flag:
         continue
 
-    adver, success = attacker(x1, x2, y, runno)
+    adver, success, score = attacker(x1, x2, y, runno)
+    logging.info(f'attack score: {score}')
 
     if len(adver.size()) == 3:
         adver = adver.squeeze(1)

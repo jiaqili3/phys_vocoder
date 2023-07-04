@@ -50,6 +50,7 @@ elif config.model == XVEC:
     config.model.threshold = 0.879676103591919
 elif config.model == XVEC1:
     # XVEC1
+    config.model = XVEC1()
     config.model.load_state_dict(torch.load('./pretrained_models/XVEC1.model'))
     config.model.threshold = 0.28246
 

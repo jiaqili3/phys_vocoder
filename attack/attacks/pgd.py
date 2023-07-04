@@ -103,4 +103,4 @@ class PGD(Attack):
                 best_decision = decision.clone().detach()
 
         # return adv_x2, decision
-        return best_adv_x2, best_decision
+        return best_adv_x2, best_decision, best_cost
