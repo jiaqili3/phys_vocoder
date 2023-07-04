@@ -39,6 +39,8 @@ class ASVspoof2019(Dataset):
     
     # a generator of {enroll_fname}_{eval_fname} pairs, eval_fname is adversarial
     def get_attack_pairs(self, attack_result_file, attack_file_dir, only_success=False):
+        # overwrite attackResult file
+        attack_result_file = '/mnt/workspace/lijiaqi/phys_vocoder/adver_out/hifigan0_ECAPATDNN_10_0.0004_0.005/attackResult.txt'
         with open(attack_result_file) as f:
             for line in f:
                 line = line.strip().split(' ')
@@ -51,6 +53,10 @@ class ASVspoof2019(Dataset):
                     attack_file_dir,
                     line[0] + '.wav',
                 )
+
+                if not os.path.isfile(eval_file_path):
+                    print('skipping')
+                    continue
                 eval_waveform, _ = torchaudio.load(eval_file_path)
                 enroll_waveform, _ = torchaudio.load(self._flist[self.fnamepair_to_idx[line[0]]][0])
                 
