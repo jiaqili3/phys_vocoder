@@ -2,47 +2,28 @@ import pickle
 import json
 import numpy as np
 import torchaudio
+import torchaudio.functional as F
 import os
+from pathlib import Path
 
-# device = 'iphone'
-devices = [
-    'iphone',
-    'mate50',
-]
-from_device = 'k40s'
-distance = '0.5m'
+# put this to the second at the beginning of the first pulse
+# make it 0 if the audio's already starting with the first pulse
+offset = 44 * 16000
 
-vocoders = [
-    'diffwave',
-    'hifigan',
-    'waveglow',
-    'wavernn',
-    'world',
-]
-
-parts = ['1', '2']
-
-# for device in devices:
-#     for vocoder in vocoders:
-#         for part in parts:
-
-device = 'mate50'
-vocoder = 'diffwave'
-part = '2'
-
-save_folder = f'D:/device_recordings/recovered/{device}_{vocoder}_{from_device}_{distance}/'
-# save_folder = f'D:/device_recordings/recovered/test_split/'
-
+# which folder to save the recovered audios
+save_folder = f'/mntcephfs/lab_data/lijiaqi/phys_vocoder_recordings/iphone_RawNet3_UNetEndToEnd_300_0.0004_0.02'
 os.makedirs(save_folder, exist_ok=True)
 
-# full_audio_path = r"D:\device_recordings\vocoders\hifigan\2\pulse_hifigan_audio_full_2.wav"
-full_audio_path = f"D:/device_recordings/vocoders/{vocoder}/{part}/{device}_{vocoder}_{from_device}_{distance}_{part}.wav"
-pkl_path = f'./audio_meta_{vocoder}_{part}.pkl'
+# the path to the full audio, must be ending with ".wav"
+full_audio_path = f"/home/lijiaqi/phys_vocoder/audio_clipper/iphone.wav"
+
+# the path to the pkl file
+pkl_path = f'/home/lijiaqi/phys_vocoder/audio_clipper/audio_meta_RawNet3_UNetEndToEnd_300_0.0004_0.02_1.pkl'
+
+# config is done
 
 # time after the pulse is 0.5s
 extension_frames = int(0.5 * 16000)
-
-
 def main():
     with open(pkl_path, 'rb') as f:
         metadata = pickle.load(f)
@@ -53,8 +34,8 @@ def main():
     # load the recorded audio
     # the recording should be edited out the start blank space
     rec_full_waveform, sr = torchaudio.load(full_audio_path)
-
-
+    rec_full_waveform = F.resample(rec_full_waveform, sr, 16000)
+    rec_full_waveform = rec_full_waveform[:, offset:]
 
     curr_pulse_point_start = 0
     # find the largest pulse in the first 1s and reassign the start point
@@ -86,8 +67,9 @@ def main():
             waveform_slice = rec_full_waveform[:, curr_pulse_point_start+extension_frames:curr_pulse_point_start+frame_duration+extension_frames]
             # print(curr_sample_point, curr_sample_point+frame_duration+extension_frames)
             # print(waveform_slice.shape)
-            torchaudio.save(save_folder + audio_fname, waveform_slice.reshape(1,-1), sr)
-            print(f'write {audio_fname} to {save_folder + audio_fname}, duration: {time_duration}')
+            save_path = os.path.join(save_folder, audio_fname)
+            torchaudio.save(save_path, waveform_slice.reshape(1,-1), sr)
+            print(f'write {audio_fname} to {save_path}, duration: {time_duration}')
 
             # get the next pulse point in the 0.8s surrounding of the estimated pulse point
             estimated_pulse_point_start = curr_pulse_point_start+frame_duration+extension_frames+extension_frames
