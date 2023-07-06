@@ -6,10 +6,7 @@ import torch
 config = edict()
 
 config.adv_dirs = [
-    '/mnt/workspace/lijiaqi/phys_vocoder/adver_out/hifigan0_ECAPATDNN_10_0.0004_0.005',
-    '/mnt/workspace/lijiaqi/phys_vocoder/adver_out/hifigan0_RawNet3_300_0.0004_0.02',
-    '/mnt/workspace/lijiaqi/phys_vocoder/adver_out/hifigan0_ResNetSE34V2_10_0.0004_0.005',
-    '/mnt/workspace/lijiaqi/phys_vocoder/adver_out/hifigan0_XVEC_10_0.0004_0.005',
+    '/mntcephfs/lab_data/lijiaqi/phys_vocoder_recordings/iphone_RawNet3_UNetEndToEnd_300_0.0004_0.02',
     ]
 
 # ---------------------------------------- ASV model ---------------------------------------- #
@@ -19,8 +16,15 @@ from attack.models.ResNetSE34V2 import ResNetSE34V2
 from attack.models.tdnn import XVEC, XVEC1
 from attack.models.model_config import config as model_config
 
+# phys vocoder
+from phys_vocoder.hifigan.generator import HifiganEndToEnd
+from phys_vocoder.unet.unet import UNetEndToEnd
+
+config.phys_vocoder_model = UNetEndToEnd
+
 # config.models = [ResNetSE34V2, RawNet3, ECAPATDNN, XVEC]
-config.model = ResNetSE34V2
+config.model = RawNet3
+config.use_phys_vocoder = False
 
 if config.model == RawNet3:
     config.model = RawNet3(**model_config['RawNet3'])
@@ -42,6 +46,39 @@ elif config.model == XVEC1:
     # XVEC1
     config.model.load_state_dict(torch.load('./pretrained_models/XVEC1.model'))
     config.model.threshold = 0.28246
+
+class CombinedModel(torch.nn.Module):
+    def __init__(self, model, phys_vocoder):
+        super(CombinedModel, self).__init__()
+        self.phys_vocoder = phys_vocoder
+        self.model = model
+        self.__class__.__name__ = f'{phys_vocoder.__class__.__name__}_{model.__class__.__name__}'
+    def forward(self, x1, x2):
+        # x1 enroll, x2 test
+        # return (decisions, cos sim)
+        if self.phys_vocoder is not None:
+            x2_voc = self.phys_vocoder(x2)
+        else:
+            x2_voc = x2
+        return self.model.make_decision_SV(x1, x2_voc)
+    def make_decision_SV(self, x1, x2):
+        return self.forward(x1, x2)
+# HifiGAN
+if config.phys_vocoder_model == HifiganEndToEnd:
+    config.phys_vocoder_model = HifiganEndToEnd()
+    config.phys_vocoder_model.load_model('/mntcephfs/lab_data/lijiaqi/hifigan-checkpoints/0630/model-115000.pt')
+
+# unet
+elif config.phys_vocoder_model == UNetEndToEnd:
+    config.phys_vocoder_model = UNetEndToEnd()
+    config.phys_vocoder_model.load_model('/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0702/model-45000.pt')
+
+if config.use_phys_vocoder:
+    thres = config.model.threshold
+    config.model = CombinedModel(config.model, config.phys_vocoder_model)
+    config.model.eval()
+    config.model.threshold = thres
+
 
 # ResNetSE34V2
 # config.model.ResNetSE34V2 = edict()
@@ -81,10 +118,11 @@ config.data.dataset_name = 'ASVspoof2019'
 config.data.ASVspoof2019 = edict()
 config.data.ASVspoof2019.dataset = edict()
 config.data.ASVspoof2019.dataloader = edict()
-config.data.ASVspoof2019.dataset.data_file = '/mnt/workspace/lijiaqi/phys_vocoder/dataset/enroll_eval_pairs.txt'
-config.data.ASVspoof2019.dataset.train_path = '/mnt/workspace/lijiaqi/PA/ASVspoof2019_PA_train/flac'
-config.data.ASVspoof2019.dataset.dev_path = '/mnt/workspace/lijiaqi/PA/ASVspoof2019_PA_dev/flac'
-config.data.ASVspoof2019.dataset.eval_path = '/mnt/workspace/lijiaqi/PA/ASVspoof2019_PA_eval/flac'
+config.data.ASVspoof2019.dataset.data_file = './dataset/enroll_eval_pairs.txt'
+# config
+config.data.ASVspoof2019.dataset.train_path = '/mntnfs/lee_data1/wangli/ASVspoof2019/PA/ASVspoof2019_PA_train/flac'
+config.data.ASVspoof2019.dataset.dev_path = '/mntnfs/lee_data1/wangli/ASVspoof2019/PA/ASVspoof2019_PA_dev/flac'
+config.data.ASVspoof2019.dataset.eval_path = '/mntnfs/lee_data1/wangli/ASVspoof2019/PA/ASVspoof2019_PA_eval/flac'
 config.data.ASVspoof2019.dataloader.batch_size = 1
 config.data.ASVspoof2019.waveform_index_spk1 = 0
 config.data.ASVspoof2019.waveform_index_spk2 = 1
