@@ -10,7 +10,7 @@ import logging
 from pathlib import Path
 import torch.nn.functional as F
 import torch
-from hifigan.generator import HifiganGenerator, HifiganEndToEnd
+from hifigan.generator import HifiganEndToEnd
 import os
 from hifigan.dataset import MelDataset, LogMelSpectrogram
 
@@ -18,7 +18,7 @@ import sys
 sys.path.append('..')
 sys.path.append('.')
 
-from phys_vocoder.unet.unet import UNet, UNetEndToEnd
+from phys_vocoder.unet.unet import UNetEndToEnd
 import glob
 import os
 
@@ -63,15 +63,16 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--checkpoint",
-        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0702/model-45000.pt',
+        # default='/home/lijiaqi/phys_vocoder/pretrained_models/model-145000.pt', # unet trained on xvec
+        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0702/model-45000.pt', # unet trained on ori
+        # default='/mntcephfs/lab_data/lijiaqi/hifigan-checkpoints/0630/model-135000.pt', # hifigan trained on ori
         type=Path,
     )
     parser.add_argument(
         "--in_dir",
         metavar="in-dir",
         help="path to input directory containing the input wavs.",
-        default='/mntnfs/lee_data1/wangli/ASVspoof2019/PA/ASVspoof2019_PA_dev/wav/*.wav',
-        # default='/mnt/workspace/lijiaqi/hifigan/PA_D_0000001.wav_synthesis.wav',
+        default='/mntcephfs/lab_data/lijiaqi/adver_out/ECAPATDNN_UNetEndToEnd_10_0.0004_0.005/PA_D_0000290_PA_E_0033977.wav',
         type=Path,
     )
     parser.add_argument(
