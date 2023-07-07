@@ -22,8 +22,8 @@ from phys_vocoder.unet.unet import UNetEndToEnd
 
 config.phys_vocoder_model = UNetEndToEnd
 
-# config.models = [ResNetSE34V2, RawNet3, ECAPATDNN, XVEC]
-config.model = RawNet3
+# config.models = [ResNetSE34V2, RawNet3, ECAPATDNN, XVEC, XVEC1]
+config.model = XVEC1
 config.use_phys_vocoder = False
 
 if config.model == RawNet3:
@@ -43,7 +43,7 @@ elif config.model == XVEC:
     config.model.load_state_dict(torch.load('./pretrained_models/XVEC.pth'))
     config.model.threshold = 0.879676103591919
 elif config.model == XVEC1:
-    config.model = XVEC(**model_config['XVEC'])
+    config.model = XVEC1()
     config.model.load_state_dict(torch.load('./pretrained_models/XVEC1.pth'))
     config.model.threshold = 0.28246
 
@@ -74,6 +74,7 @@ elif config.phys_vocoder_model == UNetEndToEnd:
     config.phys_vocoder_model.load_model('/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0702/model-45000.pt')
 
 if config.use_phys_vocoder:
+    print('using phys vocoder')
     thres = config.model.threshold
     config.model = CombinedModel(config.model, config.phys_vocoder_model)
     config.model.eval()

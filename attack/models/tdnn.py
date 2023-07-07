@@ -175,6 +175,7 @@ class XVEC1(nn.Module):
         with torch.no_grad():
             with torch.cuda.amp.autocast(enabled=False):
                 x = self.torchfb(x) + 1e-6
+                x = x[:, 0, :, :]
                 if self.log_input: x = x.log()
                 x = self.instancenorm(x)
         x = self.dropout_tdnn1(self.bn_tdnn1(F.relu(self.tdnn1(x))))
@@ -188,6 +189,16 @@ class XVEC1(nn.Module):
         x = self.dropout_fc2(self.bn_fc2(F.relu(self.fc2(x))))
         x = self.fc3(x)
         return x
+    def make_decision_SV(self, x1, x2):
+        emb1, _ = self.forward(x1)
+        emb2, _ = self.forward(x2)
+
+        cos = F.cosine_similarity(emb1, emb2, dim=1, eps=1e-6)
+        zeros = torch.zeros_like(cos)
+        ones = torch.ones_like(cos)
+        decisions = torch.where(cos > self.threshold, ones, zeros)
+        return decisions, cos
+
 if __name__ == '__main__':
     model = XVEC(feat_dim=80, embed_dim=512, pooling_func='TSTP')
     model.eval()
