@@ -17,10 +17,11 @@ if config.phys_vocoder_model is not None:
 
 
 adver_dir = config.attack.adv_dir
-adver_dir = os.path.join(adver_dir, f'{model.__class__.__name__}_{config.phys_vocoder_model.__class__.__name__}_{config.attack.steps}_{config.attack.alpha}_{config.attack.eps}')
+adver_dir = os.path.join(adver_dir, f'{model.__class__.__name__}_{config.phys_vocoder_model.__class__.__name__}{"_Alt" if config.use_alternate_pipeline else ""}_{config.attack.steps}_{config.attack.alpha}_{config.attack.eps}')
 os.makedirs(adver_dir, exist_ok=True)
-logging.basicConfig(filename=f'{adver_dir}/log', encoding='utf-8', level=logging.DEBUG, force=True)
+logging.basicConfig(filename=f'{adver_dir}/log', encoding='utf-8', level=logging.DEBUG, force=True, format='%(asctime)-3s %(message)s')
 logging.info(f'adv samples saved to {adver_dir}')
+logging.info(f'use alt pipe: {config.use_alternate_pipeline}')
 logging.info(config.attack)
 
 class CombinedModel(torch.nn.Module):
@@ -107,6 +108,7 @@ for sample_no, item in enumerate(dataloader):
         if os.path.exists(adver_path):
             logging.info('adversarial audio already exists: {}'.format(adver_path))
             flag = True
+            total_cnt -= 1
             break
     if flag:
         continue
@@ -114,7 +116,7 @@ for sample_no, item in enumerate(dataloader):
     adver, success, score = attacker(x1, x2, y, sample_no)
     if config.use_alternate_pipeline:
         adver = adver - x2 + ori_x2
-    logging.info(f'attack score: {score}')
+    logging.info(f'attack score: {score.item()}')
 
     if len(adver.size()) == 3:
         adver = adver.squeeze(1)

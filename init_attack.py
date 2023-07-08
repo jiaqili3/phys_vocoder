@@ -27,6 +27,9 @@ elif config.phys_vocoder_model == UNetEndToEnd:
     config.phys_vocoder_model = UNetEndToEnd()
     config.phys_vocoder_model.load_model('/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0702/model-45000.pt')
 
+if config.phys_vocoder_model is None:
+    config.use_alternate_pipeline = False
+
 # ---------------------------------------- ASV model ---------------------------------------- #
 from attack.models.RawNet import RawNet3
 from attack.models.ECAPATDNN import ECAPATDNN
@@ -34,7 +37,7 @@ from attack.models.ResNetSE34V2 import ResNetSE34V2
 from attack.models.tdnn import XVEC, XVEC1
 from attack.models.model_config import config as model_config
 
-config.model = XVEC
+config.model = ECAPATDNN
 
 if config.model == RawNet3:
     config.model = RawNet3(**model_config['RawNet3'])
