@@ -19,7 +19,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import attack.models.pooling_layers as pooling_layers
 import torchaudio
-
+import pdb
 
 class TdnnLayer(nn.Module):
     def __init__(self, in_dim, out_dim, context_size, dilation=1, padding=0):
@@ -190,8 +190,8 @@ class XVEC1(nn.Module):
         x = self.fc3(x)
         return x
     def make_decision_SV(self, x1, x2):
-        emb1, _ = self.forward(x1)
-        emb2, _ = self.forward(x2)
+        emb1 = self.forward(x1)
+        emb2 = self.forward(x2)
 
         cos = F.cosine_similarity(emb1, emb2, dim=1, eps=1e-6)
         zeros = torch.zeros_like(cos)

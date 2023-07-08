@@ -3,7 +3,7 @@ import torch.nn as nn
 
 from ..attack import Attack
 from ..models.loss import SpeakerVerificationLoss
-
+import pdb
 from torch.utils.tensorboard import SummaryWriter
 writer = SummaryWriter()
 
@@ -67,7 +67,9 @@ class PGD(Attack):
         best_decision = torch.tensor(0).float()
         best_adv_x2 = adv_x2.clone().detach()
 
-        for i in range(self.steps):
+        remaining_steps = self.steps
+        attack_success = False
+        while remaining_steps > 0:
             if adv_x2.dim() != 3:
                 assert adv_x2.dim() == 2
                 adv_x2 = adv_x2.unsqueeze(0)
@@ -81,11 +83,14 @@ class PGD(Attack):
             # Calculate loss
             cost = self.loss(score, y)
             # print(f'loss: {cost.item()}')
-            writer.add_scalar(f'Sample {runno} Loss', cost.item(), i)
+            # writer.add_scalar(f'Sample {runno} Loss', cost.item(), i)
 
-            # early-stopping
-            # if cost > 0:
-            #     break
+            # detect attack successful
+            with torch.no_grad():
+                if attack_success:
+                    remaining_steps -= 1
+                elif cost.item() > 0:
+                    attack_success = True
 
             # Update adversarial x2
             grad = torch.autograd.grad(cost, adv_x2,
@@ -97,10 +102,10 @@ class PGD(Attack):
             adv_x2 = torch.clamp(x2 + delta, min=-1, max=1).detach()
 
             # update best
-            if cost > best_cost:
-                best_cost = cost
-                best_adv_x2 = adv_x2.clone().detach()
-                best_decision = decision.clone().detach()
+            # if cost > best_cost:
+            #     best_cost = cost
+            #     best_adv_x2 = adv_x2.clone().detach()
+            #     best_decision = decision.clone().detach()
 
-        # return adv_x2, decision
-        return best_adv_x2, best_decision, best_cost
+        return adv_x2.clone().detach(), decision.clone().detach(), cost
+        # return best_adv_x2, best_decision, best_cost

@@ -12,9 +12,8 @@ device = 'cuda:0'
 
 model = config.model
 model = model.to(device)
-phys_vocoder = config.phys_vocoder_model
-if phys_vocoder is not None:
-    phys_vocoder = phys_vocoder.to(device)
+if config.phys_vocoder_model is not None:
+    config.phys_vocoder_model = config.phys_vocoder_model.to(device)
 
 
 adver_dir = config.attack.adv_dir
@@ -41,7 +40,10 @@ class CombinedModel(torch.nn.Module):
         return self.model.make_decision_SV(x1, x2_voc)
 
 model.eval()
-combined_model = CombinedModel(model, phys_vocoder)
+if not config.use_alternate_pipeline:
+    combined_model = CombinedModel(model, config.phys_vocoder_model)
+else:
+    combined_model = CombinedModel(model, None)
 combined_model.eval()
 combined_model.threshold = model.threshold
 
@@ -73,7 +75,7 @@ success_cnt = 0
 total_cnt = 0
 
 
-for runno, item in enumerate(dataloader):
+for sample_no, item in enumerate(dataloader):
     # shape: (batch_size, channels, audio_len)
     x1 = item[config.data[dataset_name].waveform_index_spk1]
     # to extract single channel?
@@ -87,12 +89,11 @@ for runno, item in enumerate(dataloader):
     total_cnt += 1
     x1, x2, y = x1.to(device), x2.to(device), y.to(device)
 
-
-    # decision, score = model.make_decision_SV(x1, x2)
-    # logging.info(score)
-    # continue
-
-
+    if config.use_alternate_pipeline:
+        # input passed through vocoder
+        assert config.phys_vocoder_model is not None
+        ori_x2 = x2.clone()
+        x2 = config.phys_vocoder_model(x2)
 
     # speaker file id
     spk1_file_ids = item[config.data[dataset_name].enroll_file_index]
@@ -110,7 +111,9 @@ for runno, item in enumerate(dataloader):
     if flag:
         continue
 
-    adver, success, score = attacker(x1, x2, y, runno)
+    adver, success, score = attacker(x1, x2, y, sample_no)
+    if config.use_alternate_pipeline:
+        adver = adver - x2 + ori_x2
     logging.info(f'attack score: {score}')
 
     if len(adver.size()) == 3:

@@ -3,14 +3,18 @@ import sys
 from attack.attacks.pgd import PGD
 import torch
 
-
 config = edict()
 
+# use the alternate pipeline, which 
+# does not attack the vocoder model, only use it to gen input
+# when using the alternate pipeline, must have a physical vocoder 
+config.use_alternate_pipeline = True
 
 # ---------------------------------------- physical vocoder ---------------------------------------- #
 from phys_vocoder.hifigan.generator import HifiganEndToEnd
 from phys_vocoder.unet.unet import UNetEndToEnd
 
+# set to None if not using phys vocoder
 config.phys_vocoder_model = UNetEndToEnd
 
 # HifiGAN
@@ -30,7 +34,7 @@ from attack.models.ResNetSE34V2 import ResNetSE34V2
 from attack.models.tdnn import XVEC, XVEC1
 from attack.models.model_config import config as model_config
 
-config.model = XVEC1
+config.model = XVEC
 
 if config.model == RawNet3:
     config.model = RawNet3(**model_config['RawNet3'])
@@ -49,60 +53,20 @@ elif config.model == XVEC:
     config.model.load_state_dict(torch.load('./pretrained_models/XVEC.pth'))
     config.model.threshold = 0.879676103591919
 elif config.model == XVEC1:
-    # XVEC1
     config.model = XVEC1()
-    config.model.load_state_dict(torch.load('./pretrained_models/XVEC1.model'))
+    config.model.load_state_dict(torch.load('./pretrained_models/XVEC1.pth'))
     config.model.threshold = 0.28246
-
-# ResNetSE34V2
-# config.model.ResNetSE34V2 = edict()
-# config.model.ResNetSE34V2.save_path = '/home/wangli/ASGSR/pretrained_models/ResNetSE34V2/ResNetSE34V2.pth'
-# config.model.ResNetSE34V2.threshold = 0.3702884316444397
-
-# # ECAPATDNN
-# config.model.ECAPATDNN = edict()
-# config.model.ECAPATDNN.save_path = '/home/wangli/ASGSR/pretrained_models/ECAPATDNN/ECAPATDNN.pth'
-# config.model.ECAPATDNN.threshold = 0.33709782361984253
-
-# RawNet3
-    # config.model.save_path = '/home/wangli/ASGSR/pretrained_models/RawNet3/model.pt'
-
-# XVEC
-# config.model.XVEC = edict()
-# config.model.XVEC.save_path = '/home/wangli/ASGSR/SR/exps/XVEC/20230321145333/model_epoch40_ValidAcc0.8902085747392816.pth'
-# config.model.XVEC.threshold = 0.879676103591919
-
 
 # ---------------------------------------- Attack ---------------------------------------
 
 config.attack = edict()
 config.attack.adv_dir = '/mntcephfs/lab_data/lijiaqi/adver_out/'
 
-config.attack.steps = 300
-# config.attack.steps = 10
+# steps: how many more times of attack to perform after a successful attack
+config.attack.steps = 10
 config.attack.alpha = 0.0004
 # config.attack.eps = 0.005
-config.attack.eps = 0.02
-
-
-# config.attack.attack_class = PGD
-
-# # PGD
-# if config.attack.attack_class == PGD:
-#     kwargs = {
-#         'model': None,
-#         'task': 'SV',
-#         'epsilon': 0.005,
-#         'step_size': 0.0004,
-#         'max_iter': 10,
-#         'num_random_init': 0,
-#         'targeted': False,
-#         'batch_size': 1,
-#         'EOT_size': 1,
-#         'EOT_batch_size': 1,
-#         'verbose': 1,
-#     }
-#     config.attack.attack_class = PGD(**kwargs)
+config.attack.eps = 0.01
 
 # ---------------------------------------- dataset --------------------------------------- #
 config.data = edict()
