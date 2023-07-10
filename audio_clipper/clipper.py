@@ -6,6 +6,7 @@ import numpy as np
 import os
 import soundfile as sf
 import glob
+import pdb
 
 target_paths = [
     # '/mntnfs/lee_data1/wangli/ASGSR/ASVspoof2019/world',
@@ -13,7 +14,7 @@ target_paths = [
     # '/mntcephfs/lab_data/lijiaqi/adver_out/ECAPATDNN_UNetEndToEnd_10_0.0004_0.005/*.wav',
     # '/mntcephfs/lab_data/lijiaqi/adver_out/ResNetSE34V2_UNetEndToEnd_10_0.0004_0.005/*.wav',
     # '/mntcephfs/lab_data/lijiaqi/adver_out/XVEC_UNetEndToEnd_10_0.0004_0.005/*.wav',
-    '/mntcephfs/lab_data/lijiaqi/adver_out/RawNet3_UNetEndToEnd_300_0.0004_0.02/*.wav',
+    # '/mntcephfs/lab_data/lijiaqi/adver_out/RawNet3_UNetEndToEnd_300_0.0004_0.02/*.wav',
     # '/mntcephfs/lab_data/lijiaqi/adver_out/ECAPATDNN_hifigan_10_0.0004_0.005/*.wav',
     # '/mntcephfs/lab_data/lijiaqi/adver_out/ResNetSE34V2_hifigan_10_0.0004_0.005/*.wav',
     # '/mntcephfs/lab_data/lijiaqi/adver_out/XVEC_hifigan_10_0.0004_0.005/*.wav',
@@ -35,6 +36,8 @@ target_paths = [
     # '/mntnfs/lee_data1/wangli/ASGSR/Ensemble/ASVspoof2019/Ensemble_ECAPATDNN-XVEC-RawNet3_eps-0.005-maxiter-30',
     # '/mntnfs/lee_data1/wangli/ASGSR/Ensemble/ASVspoof2019/Ensemble_ECAPATDNN-XVEC-ResNetSE34V2_eps-0.005-maxiter-30',
 ]
+    
+target_paths = glob.glob('/mntcephfs/lab_data/lijiaqi/adver_out/*_Alt*/')
 
 # target_path = '/mntnfs/lee_data1/wangli/ASGSR/ASVspoof2019/attack/PGD_XVEC-20230321145333_eps-0.005-maxiter-10'
 # target_path = '/mntnfs/lee_data1/wangli/ASGSR/all_asvspoof2019_used_wavs'
@@ -112,6 +115,8 @@ def generate_audio(target_path, entries, idx=1):
 
 def main():
     for target_path in target_paths:
-        generate_audio(target_path, glob.glob(target_path), 1)
+        assert not target_path.endswith('.wav')
+        print('target_path: ', target_path)
+        generate_audio(target_path, glob.glob(f'{target_path}/*.wav'), 1)
 
 main()
