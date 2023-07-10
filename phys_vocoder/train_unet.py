@@ -4,6 +4,7 @@ from pathlib import Path
 
 import torch
 import torch.nn.functional as F
+import torchaudio
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
@@ -11,6 +12,10 @@ import torch.distributed as dist
 from torch.utils.data.distributed import DistributedSampler
 import torch.multiprocessing as mp
 from torch.nn.parallel import DistributedDataParallel as DDP
+import torchaudio.transforms as transforms
+import librosa
+import librosa.display
+import matplotlib.pyplot as plt
 
 import sys
 import os
@@ -21,11 +26,12 @@ from phys_vocoder.dataset import WavDataset
 
 from phys_vocoder.unet.unet import UNet
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 BATCH_SIZE = 256
+# BATCH_SIZE = 32
 SEGMENT_LENGTH = 32768*2
 HOP_LENGTH = 160
 SAMPLE_RATE = 16000
@@ -34,12 +40,26 @@ FINETUNE_LEARNING_RATE = 2e-4
 BETAS = (0.8, 0.99)
 LEARNING_RATE_DECAY = 0.999
 WEIGHT_DECAY = 1e-5
-EPOCHS = 3100
+EPOCHS = 1000
 LOG_INTERVAL = 5
 VALIDATION_INTERVAL = 1000
 NUM_GENERATED_EXAMPLES = 10
 CHECKPOINT_INTERVAL = 5000
 
+def spec_loss(out, tgt, spectrogram):
+    spec_out = spectrogram(out)
+    spec_tgt = spectrogram(tgt)
+    return F.l1_loss(spec_out, spec_tgt)
+
+def plot_spectrogram(specgram, title=None, ylabel="freq_bin"):
+    fig, axs = plt.subplots(1, 1)
+    axs.set_title(title or "Spectrogram (db)")
+    axs.set_ylabel(ylabel)
+    axs.set_xlabel("frame")
+    im = axs.imshow(librosa.power_to_db(specgram), origin="lower", aspect="auto")
+    fig.colorbar(im, ax=axs)
+    plt.tight_layout()
+    return fig
 
 def train_model(rank, world_size, args):
     dist.init_process_group(
@@ -48,6 +68,12 @@ def train_model(rank, world_size, args):
         world_size=world_size,
         init_method="tcp://localhost:54328",
     )
+    spectrogram = transforms.Spectrogram(
+                n_fft=1024,
+                win_length=1024,
+                hop_length=160,
+                onesided=True,
+            ).to(rank)
 
     os.makedirs(args.checkpoint_dir, exist_ok=True)
     log_dir = args.checkpoint_dir / "logs"
@@ -92,7 +118,7 @@ def train_model(rank, world_size, args):
         train_dataset,
         batch_size=BATCH_SIZE,
         sampler=train_sampler,
-        num_workers=8,
+        num_workers=4,
         pin_memory=True,
         shuffle=False,
         drop_last=True,
@@ -110,7 +136,7 @@ def train_model(rank, world_size, args):
         validation_dataset,
         batch_size=1,
         shuffle=False,
-        num_workers=8,
+        num_workers=1,
         pin_memory=True,
     )
 
@@ -152,7 +178,9 @@ def train_model(rank, world_size, args):
             # Generator
             optimizer_generator.zero_grad()
 
-            loss_generator = F.l1_loss(out, tgt_wav)
+            # loss_generator = F.l1_loss(out, tgt_wav)
+            # change loss
+            loss_generator = spec_loss(out, tgt_wav, spectrogram)
             loss_generator.backward()
             optimizer_generator.step()
 
@@ -170,7 +198,8 @@ def train_model(rank, world_size, args):
                         global_step,
                     )
 
-            if global_step % VALIDATION_INTERVAL == 0:
+            # if global_step % VALIDATION_INTERVAL == 0:
+            if True:
                 generator.eval()
 
                 average_validation_loss = 0
@@ -180,7 +209,9 @@ def train_model(rank, world_size, args):
                     with torch.no_grad():
                         out = generator(src)
 
-                    validation_loss = F.l1_loss(out, tgt)
+                    # validation_loss = F.l1_loss(out, tgt)
+                    # change loss
+                    validation_loss = spec_loss(out, tgt, spectrogram)
                     average_validation_loss += (
                         validation_loss.item() - average_validation_loss
                     ) / j
@@ -189,11 +220,43 @@ def train_model(rank, world_size, args):
                     if rank == 0:
                         if j <= NUM_GENERATED_EXAMPLES:
                             writer.add_audio(
+                                f"src/wav_{j}",
+                                src,
+                                global_step,
+                                sample_rate=16000,
+                            )
+                            writer.add_audio(
                                 f"generated/wav_{j}",
                                 out,
                                 global_step,
                                 sample_rate=16000,
                             )
+                            writer.add_audio(
+                                f"wav_diff/wav_{j}",
+                                src-out,
+                                global_step,
+                                sample_rate=16000,
+                            )
+                            spec_diff = torchaudio.transforms.Spectrogram(n_fft=128).to(rank)(src-out)
+                            print(spec_diff.shape)
+                            spec_diff = spec_diff.squeeze(0).squeeze(0).cpu()
+
+                            writer.add_figure(
+                                f"spec_diff/spec_{j}",
+                                plot_spectrogram(spec_diff.t().numpy()),
+                                global_step,
+                            )
+                            print(spec_diff.shape)
+                            spec_diff = torch.sum(spec_diff.t(), dim=0)
+                            print(spec_diff.shape)
+                            for i in range(spec_diff.size()[0]):
+                                writer.add_scalar(
+                                    f"spec_diff/bin_{i}",
+                                    spec_diff[i],
+                                    global_step,
+                                )
+                            
+
 
                 generator.train()
 
@@ -202,7 +265,7 @@ def train_model(rank, world_size, args):
                         "validation/loss", average_validation_loss, global_step
                     )
                     logger.info(
-                        f"valid -- epoch: {epoch}, global step: {global_step}, l1 loss: {average_validation_loss:.4f}"
+                        f"valid -- epoch: {epoch}, global step: {global_step}, loss: {average_validation_loss:.4f}"
                     )
 
                 new_best = best_loss > average_validation_loss
@@ -250,7 +313,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--checkpoint_dir",
-        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0702',
+        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0710_specloss',
         metavar="checkpoint-dir",
         help="path to the checkpoint directory",
         type=Path,
