@@ -13,6 +13,8 @@
 # limitations under the License.
 
 """TDNN model for x-vector learning"""
+# import sys
+# sys.path.append('../..')
 
 import torch
 import torch.nn as nn
@@ -172,12 +174,11 @@ class XVEC1(nn.Module):
         self.fc3 = nn.Linear(512, nOut)
 
     def forward(self, x):
-        with torch.no_grad():
-            with torch.cuda.amp.autocast(enabled=False):
-                x = self.torchfb(x) + 1e-6
-                x = x[:, 0, :, :]
-                if self.log_input: x = x.log()
-                x = self.instancenorm(x)
+        with torch.cuda.amp.autocast(enabled=False):
+            x = self.torchfb(x) + 1e-6
+            x = x[:, 0, :, :]
+            if self.log_input: x = x.log()
+            x = self.instancenorm(x)
         x = self.dropout_tdnn1(self.bn_tdnn1(F.relu(self.tdnn1(x))))
         x = self.dropout_tdnn2(self.bn_tdnn2(F.relu(self.tdnn2(x))))
         x = self.dropout_tdnn3(self.bn_tdnn3(F.relu(self.tdnn3(x))))
@@ -200,9 +201,15 @@ class XVEC1(nn.Module):
         return decisions, cos
 
 if __name__ == '__main__':
-    model = XVEC(feat_dim=80, embed_dim=512, pooling_func='TSTP')
+    model = XVEC1()
+    model.threshold = 0.4
     model.eval()
-    y = model(torch.rand(1, 1, 16000))
+    print(model)
+    x = torch.rand(1, 1, 16000)
+    x.requires_grad = True
+    y = model.make_decision_SV(x, x)[1]
+    print(y)
+    print(torch.autograd.grad([y], [x]))
     print(y[-1].size())
 
     num_params = sum(p.numel() for p in model.parameters())
