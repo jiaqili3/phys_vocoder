@@ -16,6 +16,8 @@ import torchaudio.transforms as transforms
 import librosa
 import librosa.display
 import matplotlib.pyplot as plt
+from utils.utils import compute_PESQ
+import pdb
 
 import sys
 import os
@@ -30,8 +32,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+# BATCH_SIZE = 256
 BATCH_SIZE = 256
-# BATCH_SIZE = 32
 SEGMENT_LENGTH = 32768*2
 HOP_LENGTH = 160
 SAMPLE_RATE = 16000
@@ -40,7 +42,7 @@ FINETUNE_LEARNING_RATE = 2e-4
 BETAS = (0.8, 0.99)
 LEARNING_RATE_DECAY = 0.999
 WEIGHT_DECAY = 1e-5
-EPOCHS = 1000
+EPOCHS = 1300
 LOG_INTERVAL = 5
 VALIDATION_INTERVAL = 1000
 NUM_GENERATED_EXAMPLES = 10
@@ -184,7 +186,7 @@ def train_model(rank, world_size, args):
             loss_generator.backward()
             optimizer_generator.step()
 
-            global_step += 1
+            global_step += 1 * world_size * BATCH_SIZE
 
             average_loss_generator += (
                 loss_generator.item() - average_loss_generator
@@ -198,11 +200,12 @@ def train_model(rank, world_size, args):
                         global_step,
                     )
 
-            # if global_step % VALIDATION_INTERVAL == 0:
-            if True:
+            if global_step % VALIDATION_INTERVAL == 0:
+            # if True:
                 generator.eval()
 
                 average_validation_loss = 0
+                average_pesq = 0
                 for j, (_, src, tgt) in enumerate(validation_loader, 1):
                     src, tgt = src.to(rank), tgt.to(rank)
 
@@ -212,8 +215,12 @@ def train_model(rank, world_size, args):
                     # validation_loss = F.l1_loss(out, tgt)
                     # change loss
                     validation_loss = spec_loss(out, tgt, spectrogram)
+                    pesq = compute_PESQ(out.reshape(-1).cpu().numpy(), tgt.reshape(-1).cpu().numpy())
                     average_validation_loss += (
                         validation_loss.item() - average_validation_loss
+                    ) / j
+                    average_pesq += (
+                        pesq - average_pesq
                     ) / j
 
 
@@ -226,19 +233,24 @@ def train_model(rank, world_size, args):
                                 sample_rate=16000,
                             )
                             writer.add_audio(
-                                f"generated/wav_{j}",
+                                f"out/wav_{j}",
                                 out,
                                 global_step,
                                 sample_rate=16000,
                             )
                             writer.add_audio(
-                                f"wav_diff/wav_{j}",
-                                src-out,
+                                f"tgt/wav_{j}",
+                                tgt,
                                 global_step,
                                 sample_rate=16000,
                             )
-                            spec_diff = torchaudio.transforms.Spectrogram(n_fft=128).to(rank)(src-out)
-                            print(spec_diff.shape)
+                            writer.add_audio(
+                                f"wav_diff/wav_{j}",
+                                src-tgt,
+                                global_step,
+                                sample_rate=16000,
+                            )
+                            spec_diff = torchaudio.transforms.Spectrogram(n_fft=128).to(rank)(src-tgt)
                             spec_diff = spec_diff.squeeze(0).squeeze(0).cpu()
 
                             writer.add_figure(
@@ -246,9 +258,7 @@ def train_model(rank, world_size, args):
                                 plot_spectrogram(spec_diff.t().numpy()),
                                 global_step,
                             )
-                            print(spec_diff.shape)
                             spec_diff = torch.sum(spec_diff.t(), dim=0)
-                            print(spec_diff.shape)
                             for i in range(spec_diff.size()[0]):
                                 writer.add_scalar(
                                     f"spec_diff/bin_{i}",
@@ -263,6 +273,9 @@ def train_model(rank, world_size, args):
                 if rank == 0:
                     writer.add_scalar(
                         "validation/loss", average_validation_loss, global_step
+                    )
+                    writer.add_scalar(
+                        "validation/pesq", average_pesq, global_step
                     )
                     logger.info(
                         f"valid -- epoch: {epoch}, global step: {global_step}, loss: {average_validation_loss:.4f}"
@@ -313,7 +326,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--checkpoint_dir",
-        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0710_specloss',
+        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0712_specloss',
         metavar="checkpoint-dir",
         help="path to the checkpoint directory",
         type=Path,

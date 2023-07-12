@@ -17,7 +17,7 @@ if config.phys_vocoder_model is not None:
 
 
 adver_dir = config.attack.adv_dir
-adver_dir = os.path.join(adver_dir, f'{model.__class__.__name__}_{config.phys_vocoder_model.__class__.__name__}{"_Alt" if config.use_alternate_pipeline else ""}_{config.attack.steps}_{config.attack.alpha}_{config.attack.eps}')
+adver_dir = os.path.join(adver_dir, f'{model.__class__.__name__}_{"None" if config.phys_vocoder_model is None else config.phys_vocoder_model.__class__.__name__}{"_Alt" if config.use_alternate_pipeline else ""}_{config.attack.steps}_{config.attack.alpha}_{config.attack.eps}')
 os.makedirs(adver_dir, exist_ok=True)
 logging.basicConfig(filename=f'{adver_dir}/log', encoding='utf-8', level=logging.DEBUG, force=True, format='%(asctime)-3s %(message)s')
 logging.info(f'adv samples saved to {adver_dir}')
