@@ -5,6 +5,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import glob
+import pdb
 
 from torch.utils.data import Dataset
 
@@ -36,9 +37,13 @@ class WavDataset(Dataset):
         # suffix = ".wav" if not finetune else ".npy"
         # pattern = f"dev/*{suffix}" if not train else f"*{suffix}"
 
+        random.seed(0)
         self.ori_metadata = glob.glob(ori_wavs_dir)
+        random.shuffle(self.ori_metadata)
         self.ori_metadata = self.ori_metadata[:eval_size] if not train else self.ori_metadata[eval_size:]
+        random.seed(0)
         self.exp_metadata = glob.glob(exp_wavs_dir)
+        random.shuffle(self.exp_metadata)
         self.exp_metadata = self.exp_metadata[:eval_size] if not train else self.exp_metadata[eval_size:]
         assert len(self.ori_metadata) == len(self.exp_metadata)
         for i in range(len(self.ori_metadata)):
