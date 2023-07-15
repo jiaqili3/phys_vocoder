@@ -12,13 +12,13 @@ import torchaudio
 import torch
 
 # 19 hours
-MAX_AUDIO_LEN = 3600 * 16000 * 19
+MAX_AUDIO_LEN = int(3600 * 16000 * 19.6)
 
 target_paths = [
 ]
     
-target_paths += glob.glob('/mntcephfs/lab_data/lijiaqi/adver_out/*_None_*/')
-target_paths += glob.glob('/mntcephfs/lab_data/lijiaqi/adver_out/*_UNetSpecLossEndToEnd_*/')
+target_paths += glob.glob('/mntcephfs/lab_data/lijiaqi/adver_out/*_None_10_*/')
+target_paths += glob.glob('/mntcephfs/lab_data/lijiaqi/adver_out/*_UNetSpecLossEndToEnd_10_*/')
 save_path = '/mntcephfs/lab_data/lijiaqi/audio_full/0715'
 
 # target_path = '/mntnfs/lee_data1/wangli/ASGSR/ASVspoof2019/attack/PGD_XVEC-20230321145333_eps-0.005-maxiter-10'
@@ -132,7 +132,7 @@ def generate_audios(target_paths):
             assert sr == 16000
             audio_list.append(waveform)
             audio_list.append(blank_space_waveform)
-            audio_len += waveform.shape[1]
+            audio_len += waveform.shape[1] + blank_space_waveform.shape[1]
 
             metadata.append({
                 'audio_path': entry_token,
@@ -149,7 +149,7 @@ def generate_audios(target_paths):
         # save
         audio = concatenate_audio(audio_list)
         os.makedirs(save_path, exist_ok=True)
-        torchaudio.save(f'{save_path}/{Path(save_path).name}_{idx}.wav', audio, 16000)
+        torchaudio.save(f'{save_path}/{Path(save_path).name}_{idx}.wav', audio, 16000, bits_per_sample=16, encoding='PCM_S')
         print('saved to', f'{save_path}/{Path(save_path).name}_{idx}.wav')
         print('audio len:', audio_len/16000/3600)
         with open(f'audio_meta_{Path(save_path).name}_{idx}.pkl', 'wb') as f:
