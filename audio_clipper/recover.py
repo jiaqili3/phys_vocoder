@@ -5,20 +5,21 @@ import torchaudio
 import torchaudio.functional as F
 import os
 from pathlib import Path
+import pdb
 
 # put this to the second at the beginning of the first pulse
 # make it 0 if the audio's already starting with the first pulse
-offset = int(39.5 * 16000)
+offset = int(19.5 * 16000)
 device = 'iphone'
 # which folder to save the recovered audios
 save_folder = f'/mntcephfs/lab_data/lijiaqi/phys_vocoder_recordings/'
 # os.makedirs(save_folder, exist_ok=True)
 
 # the path to the full audio, must be ending with ".wav"
-full_audio_path = f"/home/lijiaqi/phys_vocoder/audio_clipper/iphone.wav"
+full_audio_path = f"/mntcephfs/lab_data/lijiaqi/audio_full/0715/0715_1.wav"
 
 # the path to the pkl file
-pkl_path = f'/home/lijiaqi/phys_vocoder/audio_clipper/audio_meta_RawNet3_UNetEndToEnd_300_0.0004_0.02_1.pkl'
+pkl_path = f'./audio_meta_0715_1.pkl'
 
 # config is done
 
@@ -62,8 +63,8 @@ def main():
             waveform_slice = rec_full_waveform[:, curr_pulse_point_start+extension_frames:curr_pulse_point_start+frame_duration+extension_frames]
             # print(curr_sample_point, curr_sample_point+frame_duration+extension_frames)
             # print(waveform_slice.shape)
-            save_path = os.path.join(save_folder, f'{device}_{audio_path.parent.name}_{audio_path.name}')
-            os.makedirs(save_path, exist_ok=True)
+            save_path = os.path.join(save_folder, f'{device}_{audio_path.parent.name}/{audio_path.name}')
+            os.makedirs(str(Path(save_path).parent), exist_ok=True)
             torchaudio.save(save_path, waveform_slice, sr)
             print(f'write to {save_path}, duration: {time_duration:2f}s')
 
@@ -78,7 +79,7 @@ def main():
                     largest_idx = i
             curr_pulse_point_start = largest_idx
             print(f'diff: {curr_pulse_point_start - estimated_pulse_point_start}')
-            assert(curr_pulse_point_start - estimated_pulse_point_start < 1500)
+            assert(abs(curr_pulse_point_start - estimated_pulse_point_start) < 1500)
             assert(largest_idx != 0)
 
 
