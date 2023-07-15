@@ -8,11 +8,11 @@ from pathlib import Path
 
 # put this to the second at the beginning of the first pulse
 # make it 0 if the audio's already starting with the first pulse
-offset = 44 * 16000
-
+offset = int(39.5 * 16000)
+device = 'iphone'
 # which folder to save the recovered audios
-save_folder = f'/mntcephfs/lab_data/lijiaqi/phys_vocoder_recordings/iphone_RawNet3_UNetEndToEnd_300_0.0004_0.02'
-os.makedirs(save_folder, exist_ok=True)
+save_folder = f'/mntcephfs/lab_data/lijiaqi/phys_vocoder_recordings/'
+# os.makedirs(save_folder, exist_ok=True)
 
 # the path to the full audio, must be ending with ".wav"
 full_audio_path = f"/home/lijiaqi/phys_vocoder/audio_clipper/iphone.wav"
@@ -22,19 +22,17 @@ pkl_path = f'/home/lijiaqi/phys_vocoder/audio_clipper/audio_meta_RawNet3_UNetEnd
 
 # config is done
 
-# time after the pulse is 0.5s
-extension_frames = int(0.5 * 16000)
+# time after the pulse is 0.25s
+extension_frames = int(0.25 * 16000)
 def main():
     with open(pkl_path, 'rb') as f:
         metadata = pickle.load(f)
 
-
-
-
     # load the recorded audio
     # the recording should be edited out the start blank space
     rec_full_waveform, sr = torchaudio.load(full_audio_path)
-    rec_full_waveform = F.resample(rec_full_waveform, sr, 16000)
+    # rec_full_waveform = F.resample(rec_full_waveform, sr, 16000)
+    assert sr == 16000
     rec_full_waveform = rec_full_waveform[:, offset:]
 
     curr_pulse_point_start = 0
@@ -51,38 +49,36 @@ def main():
 
     for entry in metadata:
         audio_path = entry['audio_path']
-        audio_fname = audio_path.split('/')[-1]
 
 
         time_duration = entry['time_duration']
         frame_duration = entry['sample_points']
-        if (int(time_duration) == 20):
-            frame_duration = 20 * 16000
         
         assert(sr == entry['sample_rate'])
         assert(sr == 16000)
 
         if audio_path != 'blank' and audio_path != 'pulse':
-
+            audio_path = Path(audio_path)
             waveform_slice = rec_full_waveform[:, curr_pulse_point_start+extension_frames:curr_pulse_point_start+frame_duration+extension_frames]
             # print(curr_sample_point, curr_sample_point+frame_duration+extension_frames)
             # print(waveform_slice.shape)
-            save_path = os.path.join(save_folder, audio_fname)
-            torchaudio.save(save_path, waveform_slice.reshape(1,-1), sr)
-            print(f'write {audio_fname} to {save_path}, duration: {time_duration}')
+            save_path = os.path.join(save_folder, f'{device}_{audio_path.parent.name}_{audio_path.name}')
+            os.makedirs(save_path, exist_ok=True)
+            torchaudio.save(save_path, waveform_slice, sr)
+            print(f'write to {save_path}, duration: {time_duration:2f}s')
 
-            # get the next pulse point in the 0.8s surrounding of the estimated pulse point
+            # get the next pulse point in the 0.2s surrounding of the estimated pulse point
             estimated_pulse_point_start = curr_pulse_point_start+frame_duration+extension_frames+extension_frames
             # find the sample point with the largest amplitude
             largest = 0
             largest_idx = 0
-            for i in range(estimated_pulse_point_start-int(sr*0.4), estimated_pulse_point_start+int(sr*0.4)):
+            for i in range(estimated_pulse_point_start-int(sr*0.2), estimated_pulse_point_start+int(sr*0.2)):
                 if rec_full_waveform[0, i] > largest:
                     largest = rec_full_waveform[0, i]
                     largest_idx = i
             curr_pulse_point_start = largest_idx
             print(f'diff: {curr_pulse_point_start - estimated_pulse_point_start}')
-            assert(curr_pulse_point_start - estimated_pulse_point_start < 1000)
+            assert(curr_pulse_point_start - estimated_pulse_point_start < 1500)
             assert(largest_idx != 0)
 
 

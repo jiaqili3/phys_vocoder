@@ -22,6 +22,26 @@ class UNetEndToEnd(nn.Module):
     def load_model(self, checkpoint_path: str, device:str='cpu') -> None:
         self.unet.load_state_dict(torch.load(checkpoint_path, map_location=device)["generator"]["model"])
 
+class UNetSpecLossEndToEnd(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.unet = UNet()
+    def forward(self, x):
+        if x.size().__len__() != 3:
+            x = x.reshape(1,1,-1)
+        # pad
+        segment_length = 32768*2
+        if segment_length < x.size(-1):
+            segment_length = segment_length * 2
+        if segment_length < x.size(-1):
+            segment_length = segment_length * 2
+        assert segment_length >= x.size(-1)
+        ori_size = x.size(-1)
+        x = F.pad(x, (0, segment_length - x.size(-1)))
+        return self.unet(x)[:,:,:ori_size]
+    def load_model(self, checkpoint_path: str, device:str='cpu') -> None:
+        self.unet.load_state_dict(torch.load(checkpoint_path, map_location=device)["generator"]["model"])
+
 
 class DownSamplingLayer(nn.Module):
     def __init__(self, channel_in, channel_out, dilation=1, kernel_size=15, stride=1, padding=7):

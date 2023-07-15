@@ -7,43 +7,25 @@ import os
 import soundfile as sf
 import glob
 import pdb
+from pathlib import Path
+import torchaudio
+import torch
+
+# 19 hours
+MAX_AUDIO_LEN = 3600 * 16000 * 19
 
 target_paths = [
-    # '/mntnfs/lee_data1/wangli/ASGSR/ASVspoof2019/world',
-    # '/mntnfs/lee_data1/wangli/ASGSR/ASVspoof2019/hifigan',
-    # '/mntcephfs/lab_data/lijiaqi/adver_out/ECAPATDNN_UNetEndToEnd_10_0.0004_0.005/*.wav',
-    # '/mntcephfs/lab_data/lijiaqi/adver_out/ResNetSE34V2_UNetEndToEnd_10_0.0004_0.005/*.wav',
-    # '/mntcephfs/lab_data/lijiaqi/adver_out/XVEC_UNetEndToEnd_10_0.0004_0.005/*.wav',
-    # '/mntcephfs/lab_data/lijiaqi/adver_out/RawNet3_UNetEndToEnd_300_0.0004_0.02/*.wav',
-    # '/mntcephfs/lab_data/lijiaqi/adver_out/ECAPATDNN_hifigan_10_0.0004_0.005/*.wav',
-    # '/mntcephfs/lab_data/lijiaqi/adver_out/ResNetSE34V2_hifigan_10_0.0004_0.005/*.wav',
-    # '/mntcephfs/lab_data/lijiaqi/adver_out/XVEC_hifigan_10_0.0004_0.005/*.wav',
-    # '/mnt/workspace/lijiaqi/phys_vocoder/adver_out/XVEC_10_0.0004_0.005/*.wav',
-    # '/mntnfs/lee_data1/luoyuhao/something/vocoder/waveglow_official',
-    # '/mntcephfs/lab_data/wangli/wavernn',
-    # '/mntnfs/lee_data1/luoyuhao/something/ASGSR/attack/PGD_XVEC-20230321145333_eps-0.005-maxiter-10',
-    # '/mntnfs/lee_data1/luoyuhao/something/ASGSR/attack/PGD_ResNetSE34V2-ResNetSE34V2_eps-0.005-maxiter-10',
-    # '/mntnfs/lee_data1/luoyuhao/something/ASGSR/attack/PGD_RawNet3-RawNet3_eps-0.005-maxiter-10',
-    # '/mntnfs/lee_data1/luoyuhao/something/ASGSR/attack/PGD_ECAPATDNN-ECAPATDNN_eps-0.005-maxiter-10',
-
-    # '/mntnfs/lee_data1/wangli/ASGSR/ASVspoof2019/attack/FAKEBOB_XVEC-20230321145333_eps-0.005-maxiter-1000',
-    # '/mntnfs/lee_data1/wangli/ASGSR/ASVspoof2019/attack/FAKEBOB_ResNetSE34V2-ResNetSE34V2_eps-0.005-maxiter-1000',
-    # '/mntnfs/lee_data1/wangli/ASGSR/ASVspoof2019/attack/FAKEBOB_RawNet3-RawNet3_eps-0.005-maxiter-1000',
-    # '/mntnfs/lee_data1/wangli/ASGSR/ASVspoof2019/attack/FAKEBOB_ECAPATDNN-ECAPATDNN_eps-0.005-maxiter-1000',
-
-    # '/mntnfs/lee_data1/wangli/ASGSR/Ensemble/ASVspoof2019/Ensemble_ECAPATDNN-RawNet3-ResNetSE34V2_eps-0.005-maxiter-30',
-    # '/mntnfs/lee_data1/wangli/ASGSR/Ensemble/ASVspoof2019/Ensemble_ResNetSE34V2-XVEC-RawNet3_eps-0.005-maxiter-30',
-    # '/mntnfs/lee_data1/wangli/ASGSR/Ensemble/ASVspoof2019/Ensemble_ECAPATDNN-XVEC-RawNet3_eps-0.005-maxiter-30',
-    # '/mntnfs/lee_data1/wangli/ASGSR/Ensemble/ASVspoof2019/Ensemble_ECAPATDNN-XVEC-ResNetSE34V2_eps-0.005-maxiter-30',
 ]
     
-target_paths = glob.glob('/mntcephfs/lab_data/lijiaqi/adver_out/*_Alt*/')
+target_paths = glob.glob('/mntcephfs/lab_data/lijiaqi/adver_out/*_UNetSpecLossEndToEnd_10_*/')
+save_path = '/mntcephfs/lab_data/lijiaqi/audio_full/0715'
 
 # target_path = '/mntnfs/lee_data1/wangli/ASGSR/ASVspoof2019/attack/PGD_XVEC-20230321145333_eps-0.005-maxiter-10'
 # target_path = '/mntnfs/lee_data1/wangli/ASGSR/all_asvspoof2019_used_wavs'
 
 def concatenate_audio(audio_list):
-    return np.concatenate(audio_list, axis=0)
+    # return np.concatenate(audio_list, axis=0)
+    return torch.cat(audio_list, dim=1)
 def generate_audio(target_path, entries, idx=1):
     
     path_ending = target_path.split('/')[-2]
@@ -113,10 +95,63 @@ def generate_audio(target_path, entries, idx=1):
     with open(f'audio_meta_{path_ending}_{idx}.pkl', 'wb') as f:
         pickle.dump(metadata, f)
 
+
+
+def generate_audios(target_paths):
+    all_entries = []
+    limit = MAX_AUDIO_LEN
+
+    with open('2500_list.txt') as f:
+        selected_files = f.readlines()
+    for path in target_paths:
+        for fname in selected_files:
+            all_entries.append(f'{path}/{fname}')
+
+    idx = 0
+    while all_entries != []:
+        idx += 1
+        audio_len = 0
+        audio_list = []
+        metadata = []
+        blank_space_frames = int(16000*0.5)
+        blank_space_waveform = np.zeros((blank_space_frames,), dtype=np.float64)
+        blank_space_waveform[blank_space_frames // 2] = 1.0
+
+        for i in range(40):
+            audio_list.append(blank_space_waveform)
+        while audio_len < limit:
+            audio_path = all_entries.pop()
+            audio_path = Path(audio_path)
+            entry_token = f'{audio_path.parent.name}/{audio_path.name}'
+            print(entry_token)
+            waveform, sr = torchaudio.load(str(audio_path))
+            assert sr == 16000
+            audio_list.append(waveform)
+            audio_list.append(blank_space_waveform)
+            audio_len += waveform.shape[1]
+
+            metadata.append({
+                'audio_path': entry_token,
+                'time_duration': waveform.shape[0] / sr,
+                'sample_points': waveform.shape[0],
+                'sample_rate': sr,
+            })
+            metadata.append({
+                'audio_path': 'blank',
+                'time_duration': blank_space_frames / sr,
+                'sample_points': blank_space_frames,
+                'sample_rate': sr,
+            })
+        # save
+        audio = concatenate_audio(audio_list)
+        os.makedirs(save_path, exist_ok=True)
+        torchaudio.save(f'{save_path}/{Path(save_path).name}_{idx}.wav', audio, 16000)
+        print('saved to', f'{save_path}/{Path(save_path).name}_{idx}.wav')
+        with open(f'audio_meta_{Path(save_path).name}_{idx}.pkl', 'wb') as f:
+            pickle.dump(metadata, f)
+
+
 def main():
-    for target_path in target_paths:
-        assert not target_path.endswith('.wav')
-        print('target_path: ', target_path)
-        generate_audio(target_path, glob.glob(f'{target_path}/*.wav'), 1)
+    generate_audios(target_paths)
 
 main()
