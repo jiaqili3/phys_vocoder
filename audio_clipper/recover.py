@@ -9,17 +9,21 @@ import pdb
 
 # put this to the second at the beginning of the first pulse
 # make it 0 if the audio's already starting with the first pulse
-offset = int(19.5 * 16000)
+offset = int(
+    (19*3600*16000) + # hour
+    (36*60*16000) + # minute
+    (47.2 * 16000) # second
+)
 device = 'iphone'
 # which folder to save the recovered audios
 save_folder = f'/mntcephfs/lab_data/lijiaqi/phys_vocoder_recordings/'
 # os.makedirs(save_folder, exist_ok=True)
 
 # the path to the full audio, must be ending with ".wav"
-full_audio_path = f"/mntcephfs/lab_data/lijiaqi/audio_full/0715/0715_1.wav"
+full_audio_path = f"iphone.wav"
 
 # the path to the pkl file
-pkl_path = f'./audio_meta_0715_1.pkl'
+pkl_path = f'./audio_meta_0715_2.pkl'
 
 # config is done
 
@@ -65,7 +69,7 @@ def main():
             # print(waveform_slice.shape)
             save_path = os.path.join(save_folder, f'{device}_{audio_path.parent.name}/{audio_path.name}')
             os.makedirs(str(Path(save_path).parent), exist_ok=True)
-            torchaudio.save(save_path, waveform_slice, sr)
+            torchaudio.save(save_path, waveform_slice, sr, bits_per_sample=16, encoding='PCM_S')
             print(f'write to {save_path}, duration: {time_duration:2f}s')
 
             # get the next pulse point in the 0.2s surrounding of the estimated pulse point
