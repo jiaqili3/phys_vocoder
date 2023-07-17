@@ -69,7 +69,7 @@ class PGD(Attack):
 
         remaining_steps = self.steps
         attack_success = False
-        while remaining_steps > 0:
+        while remaining_steps >= 0:
             if adv_x2.dim() != 3:
                 assert adv_x2.dim() == 2
                 adv_x2 = adv_x2.unsqueeze(0)
@@ -86,11 +86,12 @@ class PGD(Attack):
             # writer.add_scalar(f'Sample {runno} Loss', cost.item(), i)
 
             # detect attack successful
-            with torch.no_grad():
-                if attack_success:
+            if attack_success:
+                remaining_steps -= 1
+            elif cost.item() > 0:
+                attack_success = True
+                if remaining_steps == 0:
                     remaining_steps -= 1
-                elif cost.item() > 0:
-                    attack_success = True
 
             # Update adversarial x2
             grad = torch.autograd.grad(cost, adv_x2,

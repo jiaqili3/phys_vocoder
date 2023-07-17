@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 
 # BATCH_SIZE = 256
-BATCH_SIZE = 256
+BATCH_SIZE = 128
 SEGMENT_LENGTH = 32768*2
 HOP_LENGTH = 160
 SAMPLE_RATE = 16000
@@ -42,16 +42,18 @@ FINETUNE_LEARNING_RATE = 2e-4
 BETAS = (0.8, 0.99)
 LEARNING_RATE_DECAY = 0.999
 WEIGHT_DECAY = 1e-5
-EPOCHS = 1300
+EPOCHS = 2000
 LOG_INTERVAL = 5
 VALIDATION_INTERVAL = 1000
 NUM_GENERATED_EXAMPLES = 10
 CHECKPOINT_INTERVAL = 5000
 
-def spec_loss(out, tgt, spectrogram):
+def loss_func(out, tgt, spectrogram):
     spec_out = spectrogram(out)
     spec_tgt = spectrogram(tgt)
-    return F.l1_loss(spec_out, spec_tgt)
+    spec_loss = F.l1_loss(spec_out, spec_tgt)
+    wav_loss = F.l1_loss(out, tgt)
+    return 0.1*spec_loss + 0.9*wav_loss
 
 def plot_spectrogram(specgram, title=None, ylabel="freq_bin"):
     fig, axs = plt.subplots(1, 1)
@@ -158,7 +160,7 @@ def train_model(rank, world_size, args):
     #     global_step, best_loss = 0, float("inf")
 
     n_epochs = EPOCHS
-    start_epoch = global_step // len(train_loader) + 1
+    start_epoch = global_step // BATCH_SIZE // world_size // len(train_loader) + 1
 
     logger.info("**" * 40)
     logger.info(f"batch size: {BATCH_SIZE}")
@@ -182,7 +184,7 @@ def train_model(rank, world_size, args):
 
             # loss_generator = F.l1_loss(out, tgt_wav)
             # change loss
-            loss_generator = spec_loss(out, tgt_wav, spectrogram)
+            loss_generator = loss_func(out, tgt_wav, spectrogram)
             loss_generator.backward()
             optimizer_generator.step()
 
@@ -206,16 +208,24 @@ def train_model(rank, world_size, args):
 
                 average_validation_loss = 0
                 average_pesq = 0
+                average_spec_diff = None
                 for j, (_, src, tgt) in enumerate(validation_loader, 1):
                     src, tgt = src.to(rank), tgt.to(rank)
+
 
                     with torch.no_grad():
                         out = generator(src)
 
+                    # pdb.set_trace()
                     # validation_loss = F.l1_loss(out, tgt)
                     # change loss
-                    validation_loss = spec_loss(out, tgt, spectrogram)
-                    pesq = compute_PESQ(out.reshape(-1).cpu().numpy(), tgt.reshape(-1).cpu().numpy())
+                    validation_loss = loss_func(out, tgt, spectrogram)
+                    try:
+                        pesq = compute_PESQ(out.reshape(-1).cpu().numpy(), tgt.reshape(-1).cpu().numpy())
+                    except:
+                        print(out.shape, tgt.shape)
+                        pesq = 0.0
+
                     average_validation_loss += (
                         validation_loss.item() - average_validation_loss
                     ) / j
@@ -223,9 +233,22 @@ def train_model(rank, world_size, args):
                         pesq - average_pesq
                     ) / j
 
+                    # spec_diff1 = spec_out - spec_tgt
+                    # spec_diff1 = spec_diff.squeeze(0).squeeze(0)
+                    # shape: (n_bin, time)
+
+                    # if average_spec_diff is None:
+                    #     average_spec_diff = torch.sum(spec_diff, dim=1)
+                    # else:
+                    #     average_spec_diff += (
+                    #         torch.sum(spec_diff, dim=1) - average_spec_diff
+                    #     ) / j
 
                     if rank == 0:
                         if j <= NUM_GENERATED_EXAMPLES:
+                            spec_out = spectrogram(out)
+                            spec_tgt = spectrogram(tgt)
+                            spec_src = spectrogram(src)
                             writer.add_audio(
                                 f"src/wav_{j}",
                                 src,
@@ -244,33 +267,61 @@ def train_model(rank, world_size, args):
                                 global_step,
                                 sample_rate=16000,
                             )
-                            writer.add_audio(
-                                f"wav_diff/wav_{j}",
-                                src-tgt,
-                                global_step,
-                                sample_rate=16000,
-                            )
-                            spec_diff = torchaudio.transforms.Spectrogram(n_fft=128).to(rank)(src-tgt)
-                            spec_diff = spec_diff.squeeze(0).squeeze(0).cpu()
+                            # writer.add_audio(
+                            #     f"wav_diff/wav_{j}",
+                            #     src-tgt,
+                            #     global_step,
+                            #     sample_rate=16000,
+                            # )
 
+                            spec_out = spec_out.squeeze(0).squeeze(0).cpu()
+                            spec_tgt = spec_tgt.squeeze(0).squeeze(0).cpu()
+                            spec_src = spec_src.squeeze(0).squeeze(0).cpu()
+                            spec_outminsrc = spec_out - spec_src
+                            spec_tgtminsrc = spec_tgt - spec_src
+                            # writer.add_figure(
+                            #     f"spec_diff/spec_{j}",
+                            #     plot_spectrogram(spec_diff.cpu().numpy()),
+                            #     global_step,
+                            # )
                             writer.add_figure(
-                                f"spec_diff/spec_{j}",
-                                plot_spectrogram(spec_diff.t().numpy()),
+                                f"spec_out/spec_{j}",
+                                plot_spectrogram(spec_out.numpy()),
                                 global_step,
                             )
-                            spec_diff = torch.sum(spec_diff.t(), dim=0)
-                            for i in range(spec_diff.size()[0]):
-                                writer.add_scalar(
-                                    f"spec_diff/bin_{i}",
-                                    spec_diff[i],
-                                    global_step,
-                                )
+                            writer.add_figure(
+                                f"spec_tgt/spec_{j}",
+                                plot_spectrogram(spec_tgt.numpy()),
+                                global_step,
+                            )
+                            writer.add_figure(
+                                f"spec_outminsrc/spec_{j}",
+                                plot_spectrogram(spec_outminsrc.numpy()),
+                                global_step,
+                            )
+                            writer.add_figure(
+                                f"spec_tgtminsrc/spec_{j}",
+                                plot_spectrogram(spec_tgtminsrc.numpy()),
+                                global_step,
+                            )
                             
-
 
                 generator.train()
 
                 if rank == 0:
+                    # for i in range(average_spec_diff.shape[0]):
+                    #     writer.add_scalar(
+                    #         f"avg_spec_diff/bin_{i}",
+                    #         average_spec_diff[i],
+                    #         global_step,
+                    #     )
+                    # plot the avg diff spectrogram
+                    # writer.add_figure(
+                    #     f"avg_diff/step {global_step}",
+                    #     plot_spectrogram(average_spec_diff*torch.ones(average_spec_diff.shape[0])),
+                    #     global_step,
+                    # )
+
                     writer.add_scalar(
                         "validation/loss", average_validation_loss, global_step
                     )
@@ -278,7 +329,7 @@ def train_model(rank, world_size, args):
                         "validation/pesq", average_pesq, global_step
                     )
                     logger.info(
-                        f"valid -- epoch: {epoch}, global step: {global_step}, loss: {average_validation_loss:.4f}"
+                        f"valid -- epoch: {epoch}, global step: {global_step}, loss: {average_validation_loss:.4f}, pesq: {average_pesq}"
                     )
 
                 new_best = best_loss > average_validation_loss
@@ -312,21 +363,21 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train or finetune HiFi-GAN.")
     parser.add_argument(
         "--dataset_dir",
-        default='/mntcephfs/lab_data/wangli/concat/*.wav',
+        default='/mntcephfs/lab_data/lijiaqi/adver_out/dataset/*.wav',
         metavar="dataset-dir",
         help="path to the preprocessed data directory",
         type=str,
     )
     parser.add_argument(
         "--exp_wavs_dir",
-        default=str('/mntcephfs/lab_data/lijiaqi/ASGSR/device_recordings/recovered/iphone_concat_k40s_0.5m/*.wav'),
+        default=str('/mntcephfs/lab_data/lijiaqi/phys_vocoder_recordings/recording_dataset/*.wav'),
         metavar="dataset-dir",
         help="path to the preprocessed data directory",
         type=str,
     )
     parser.add_argument(
         "--checkpoint_dir",
-        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0712_specloss',
+        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0717_mixedloss_0717recdata',
         metavar="checkpoint-dir",
         help="path to the checkpoint directory",
         type=Path,
