@@ -38,22 +38,26 @@ SEGMENT_LENGTH = 32768*2
 HOP_LENGTH = 160
 SAMPLE_RATE = 16000
 BASE_LEARNING_RATE = 2e-4
-FINETUNE_LEARNING_RATE = 2e-4
+FINETUNE_LEARNING_RATE = 1e-5
 BETAS = (0.8, 0.99)
 LEARNING_RATE_DECAY = 0.999
 WEIGHT_DECAY = 1e-5
-EPOCHS = 2000
+EPOCHS = 500
 LOG_INTERVAL = 5
 VALIDATION_INTERVAL = 1000
 NUM_GENERATED_EXAMPLES = 10
-CHECKPOINT_INTERVAL = 5000
+CHECKPOINT_INTERVAL = 3000000
 
 def loss_func(out, tgt, spectrogram):
     spec_out = spectrogram(out)
     spec_tgt = spectrogram(tgt)
     spec_loss = F.l1_loss(spec_out, spec_tgt)
     wav_loss = F.l1_loss(out, tgt)
+
     return 0.1*spec_loss + 0.9*wav_loss
+    # diff = out - tgt
+    # return F.l1_loss(out, tgt)
+    # return torch.sum(torch.abs(diff+1e-10 / (tgt+1e-10))) / BATCH_SIZE + torch
 
 def plot_spectrogram(specgram, title=None, ylabel="freq_bin"):
     fig, axs = plt.subplots(1, 1)
@@ -156,8 +160,8 @@ def train_model(rank, world_size, args):
     generator = DDP(generator, device_ids=[rank])
 
 
-    # if args.finetune:
-    #     global_step, best_loss = 0, float("inf")
+    if args.finetune:
+        global_step, best_loss = 0, float("inf")
 
     n_epochs = EPOCHS
     start_epoch = global_step // BATCH_SIZE // world_size // len(train_loader) + 1
@@ -201,6 +205,16 @@ def train_model(rank, world_size, args):
                         loss_generator.item(),
                         global_step,
                     )
+                try:
+                    for j in range(NUM_GENERATED_EXAMPLES):
+                        writer.add_audio(
+                            f"train_outmintgt/wav_{j}",
+                            out[j]-tgt[j],
+                            0,
+                            sample_rate=16000,
+                        )
+                except:
+                    pass
 
             if global_step % VALIDATION_INTERVAL == 0:
             # if True:
@@ -208,7 +222,6 @@ def train_model(rank, world_size, args):
 
                 average_validation_loss = 0
                 average_pesq = 0
-                average_spec_diff = None
                 for j, (_, src, tgt) in enumerate(validation_loader, 1):
                     src, tgt = src.to(rank), tgt.to(rank)
 
@@ -267,6 +280,12 @@ def train_model(rank, world_size, args):
                                 global_step,
                                 sample_rate=16000,
                             )
+                            writer.add_audio(
+                                f"outmintgt/wav_{j}",
+                                out-tgt,
+                                global_step,
+                                sample_rate=16000,
+                            )
                             # writer.add_audio(
                             #     f"wav_diff/wav_{j}",
                             #     src-tgt,
@@ -287,22 +306,27 @@ def train_model(rank, world_size, args):
                             writer.add_figure(
                                 f"spec_out/spec_{j}",
                                 plot_spectrogram(spec_out.numpy()),
-                                global_step,
+                                0,
                             )
                             writer.add_figure(
                                 f"spec_tgt/spec_{j}",
                                 plot_spectrogram(spec_tgt.numpy()),
-                                global_step,
+                                0,
                             )
                             writer.add_figure(
                                 f"spec_outminsrc/spec_{j}",
                                 plot_spectrogram(spec_outminsrc.numpy()),
-                                global_step,
+                                0,
                             )
                             writer.add_figure(
                                 f"spec_tgtminsrc/spec_{j}",
                                 plot_spectrogram(spec_tgtminsrc.numpy()),
-                                global_step,
+                                0,
+                            )
+                            writer.add_figure(
+                                f"spec_outmintgt/spec_{j}",
+                                plot_spectrogram(spec_out.numpy() - spec_tgt.numpy()),
+                                0,
                             )
                             
 
@@ -363,34 +387,34 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train or finetune HiFi-GAN.")
     parser.add_argument(
         "--dataset_dir",
-        default='/mntcephfs/lab_data/lijiaqi/adver_out/dataset/*.wav',
+        default='/mntcephfs/lab_data/lijiaqi/adver_out/dataset_iphone/*.wav',
         metavar="dataset-dir",
         help="path to the preprocessed data directory",
         type=str,
     )
     parser.add_argument(
         "--exp_wavs_dir",
-        default=str('/mntcephfs/lab_data/lijiaqi/phys_vocoder_recordings/recording_dataset/*.wav'),
+        default=str('/mntcephfs/lab_data/lijiaqi/phys_vocoder_recordings/recording_dataset_iphone/*.wav'),
         metavar="dataset-dir",
         help="path to the preprocessed data directory",
         type=str,
     )
     parser.add_argument(
         "--checkpoint_dir",
-        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0717_mixedloss_0717recdata',
+        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0719_mixedloss_normalized',
         metavar="checkpoint-dir",
         help="path to the checkpoint directory",
         type=Path,
     )
     parser.add_argument(
         "--resume",
-        default=None,
+        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0717_mixedloss_0717recdata/model-33744000.pt',
         help="path to the checkpoint to resume from",
         type=Path,
     )
     parser.add_argument(
         "--finetune",
-        default=False,
+        default=True,
         help="whether to finetune (note that a resume path must be given)",
         action="store_true",
     )
