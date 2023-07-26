@@ -18,6 +18,11 @@ import librosa.display
 import matplotlib.pyplot as plt
 from utils.utils import compute_PESQ
 import pdb
+import random
+random.seed(16)
+import glob
+
+from init_asv import config
 
 import sys
 import os
@@ -33,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 
 # BATCH_SIZE = 256
-BATCH_SIZE = 128
+BATCH_SIZE = 16
 SEGMENT_LENGTH = 32768*2
 HOP_LENGTH = 160
 SAMPLE_RATE = 16000
@@ -48,16 +53,17 @@ VALIDATION_INTERVAL = 1000
 NUM_GENERATED_EXAMPLES = 10
 CHECKPOINT_INTERVAL = 3000000
 
-def loss_func(out, tgt, spectrogram):
+def loss_func(out, tgt, spectrogram, enroll, asv_model):
     spec_out = spectrogram(out)
     spec_tgt = spectrogram(tgt)
     spec_loss = F.l1_loss(spec_out, spec_tgt)
     wav_loss = F.l1_loss(out, tgt)
 
-    return 0.1*spec_loss + 0.9*wav_loss
-    # diff = out - tgt
-    # return F.l1_loss(out, tgt)
-    # return torch.sum(torch.abs(diff+1e-10 / (tgt+1e-10))) / BATCH_SIZE + torch
+    enroll = torch.cat([enroll.unsqueeze(0)]*spec_out.shape[0], dim=0)
+    _, cos1 = asv_model.make_decision_SV(enroll, out)
+    _, cos2 = asv_model.make_decision_SV(enroll, tgt)
+    # print(torch.abs(cos1-cos2).mean())
+    return 0.1*spec_loss + 0.9*wav_loss + 10*torch.abs(cos1-cos2).mean()
 
 def plot_spectrogram(specgram, title=None, ylabel="freq_bin"):
     fig, axs = plt.subplots(1, 1)
@@ -76,6 +82,8 @@ def train_model(rank, world_size, args):
         world_size=world_size,
         init_method="tcp://localhost:54328",
     )
+    asv_model = config.model.to(rank)
+    asv_model.eval()
     spectrogram = transforms.Spectrogram(
                 n_fft=1024,
                 win_length=1024,
@@ -172,6 +180,7 @@ def train_model(rank, world_size, args):
     logger.info(f"total of epochs: {n_epochs}")
     logger.info(f"started at epoch: {start_epoch}")
     logger.info("**" * 40 + "\n")
+    enroll_flist = glob.glob('./enroll_waveforms/*.wav')
 
     for epoch in range(start_epoch, n_epochs + 1):
         train_sampler.set_epoch(epoch)
@@ -180,15 +189,18 @@ def train_model(rank, world_size, args):
         average_loss_generator = 0
         for i, (_, src_wav, tgt_wav) in enumerate(train_loader, 1):
             src_wav, tgt_wav = src_wav.to(rank), tgt_wav.to(rank)
-
             out = generator(src_wav)
+
+            enroll_waveform = random.choice(enroll_flist)
+            enroll_waveform, _ = torchaudio.load(enroll_waveform)
+            enroll_waveform = enroll_waveform.to(rank)
 
             # Generator
             optimizer_generator.zero_grad()
 
             # loss_generator = F.l1_loss(out, tgt_wav)
             # change loss
-            loss_generator = loss_func(out, tgt_wav, spectrogram)
+            loss_generator = loss_func(out, tgt_wav, spectrogram, enroll_waveform, asv_model)
             loss_generator.backward()
             optimizer_generator.step()
 
@@ -232,7 +244,7 @@ def train_model(rank, world_size, args):
                     # pdb.set_trace()
                     # validation_loss = F.l1_loss(out, tgt)
                     # change loss
-                    validation_loss = loss_func(out, tgt, spectrogram)
+                    validation_loss = loss_func(out, tgt, spectrogram, enroll_waveform, asv_model)
                     try:
                         pesq = compute_PESQ(out.reshape(-1).cpu().numpy(), tgt.reshape(-1).cpu().numpy())
                     except:
@@ -401,14 +413,14 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--checkpoint_dir",
-        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0719_mixedloss_normalized',
+        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0726_mixedloss1_normalized',
         metavar="checkpoint-dir",
         help="path to the checkpoint directory",
         type=Path,
     )
     parser.add_argument(
         "--resume",
-        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0717_mixedloss_0717recdata/model-33744000.pt',
+        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0719_mixedloss_normalized/model-3264000.pt',
         help="path to the checkpoint to resume from",
         type=Path,
     )
