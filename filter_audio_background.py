@@ -8,6 +8,7 @@ from attack.models.model_config import config as model_config
 from dataset.asvspoof2019 import ASVspoof2019
 from init_test import config
 import tqdm
+import pdb
 
 model = ECAPATDNN(**model_config['ECAPATDNN'])
 model.load_state_dict(torch.load('./pretrained_models/ECAPATDNN.pth'))
@@ -49,7 +50,29 @@ for item in dataloader:
     ori_waveform, _ = torchaudio.load(f'/mntcephfs/lab_data/lijiaqi/adver_out/ECAPATDNN_None_0_0.0004_0.005/{enroll_file}_{test_file}.wav')
     ori_waveform = ori_waveform.to(device).unsqueeze(0)
     decision2, cos2 = model.make_decision_SV(enroll_waveforms, ori_waveform)
-    print(cos2.item() - cos1.item())
+    print('recording cause degradation', cos1.item() - cos2.item())
+
+    # split into k_bins bins 
+    k_bins = 20
+    for i in range(k_bins):
+
+        
+
+        length = enroll_waveforms.size()[-1]
+        ori_waveform_copy = ori_waveform.clone()
+        ori_waveform_copy[:, :, i * length//k_bins : (i+1) * length//k_bins] = test_waveforms[:, :, i * length//k_bins : (i+1) * length//k_bins]
+        decision3, cos3 = model.make_decision_SV(enroll_waveforms, ori_waveform_copy)
+        print('cos1', cos1.item())
+        print('cos2', cos2.item())
+        print('cos3', cos3.item())
+        print(f'substituting part {i} cause degradation', cos3.item() - cos2.item())
+        print(f'proportion of degradation part {i}', (cos3.item() - cos2.item()) / (cos1.item() - cos2.item()))
+        # print(cos3.item() - cos2.item())
+        # pdb.set_trace()
+        torchaudio.save(f'part{i}.wav', ori_waveform_copy.cpu().squeeze(0), 16000)
+    exit()
+
+    print('------------')
 
 
 
@@ -69,4 +92,4 @@ for item in dataloader:
 #     # get attack score of input waveform
 #     decision, cos = model.make_decision_SV()
 
-#     # 20 bins, 
+#     # k_bins bins, 
