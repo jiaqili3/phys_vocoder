@@ -29,8 +29,94 @@ dataset_config = config.data['ASVspoof2019'].dataset
 dataset = ASVspoof2019(**dataset_config)
 dataloader = dataset.get_attack_pairs('attackResult.txt', '/mntcephfs/lab_data/lijiaqi/phys_vocoder_recordings/iphone_ECAPATDNN_None_0_0.0004_0.005')
 
+# examine attack effects 
+for audio_no, item in enumerate(dataloader):
+    enroll_waveforms, test_waveforms = item[0], item[1]
+    enroll_waveforms = enroll_waveforms.to(device)
+    test_waveforms = test_waveforms.to(device)
 
+    enroll_file = item[2]
+    test_file = item[3]
+    # print(f'enroll_file: {enroll_file} test_file: {test_file} enroll shape: {enroll_waveforms.shape} test shape: {test_waveforms.shape}')
+
+
+    decision1, cos1 = model.make_decision_SV(enroll_waveforms, test_waveforms)
+    # print(decision1.item(), cos1.item())
+    # num_total += enroll_waveforms.size(0)
+    # num_success += decisions.sum().item()
+
+    # unrecorded
+    ori_waveform, _ = torchaudio.load(f'/mntcephfs/lab_data/lijiaqi/adver_out/ECAPATDNN_None_0_0.0004_0.005/{enroll_file}_{test_file}.wav')
+    ori_waveform = ori_waveform.to(device).unsqueeze(0)
+    decision2, cos2 = model.make_decision_SV(enroll_waveforms, ori_waveform)
+    print('recording cause degradation', cos1.item() - cos2.item())
+
+    # split into k_bins bins 
+    k_bins = 4
+    for i in range(k_bins):
+
+        
+
+        length = test_waveforms.size()[-1]
+        ori_waveform_copy = ori_waveform.clone()
+        ori_waveform_copy[:, :, i * length//k_bins : (i+1) * length//k_bins] = 0
+        decision3, cos3 = model.make_decision_SV(enroll_waveforms, ori_waveform_copy)
+        print('cos1', cos1.item())
+        print('cos2', cos2.item())
+        print('cos3', cos3.item())
+        # print(f'substituting part {i} cause degradation', cos3.item() - cos2.item())
+        print(f'proportion of degradation part {i}', (cos3.item() - cos2.item()) / (cos1.item() - cos2.item()))
+        # print(cos3.item() - cos2.item())
+        # pdb.set_trace()
+        torchaudio.save(f'{audio_no}_part{i}.wav', ori_waveform_copy.cpu().squeeze(0), 16000)
+    # exit()
+    print(f'--------audio {audio_no}------')
+    if audio_no > 20: 
+        exit()
+
+print('---------------RECORD----------------')
+exit()
 # recorded
+for item in dataloader:
+    enroll_waveforms, test_waveforms = item[0], item[1]
+    enroll_waveforms = enroll_waveforms.to(device)
+    test_waveforms = test_waveforms.to(device)
+
+    enroll_file = item[2]
+    test_file = item[3]
+    # print(f'enroll_file: {enroll_file} test_file: {test_file} enroll shape: {enroll_waveforms.shape} test shape: {test_waveforms.shape}')
+
+
+    decision1, cos1 = model.make_decision_SV(enroll_waveforms, test_waveforms)
+    # print(decision1.item(), cos1.item())
+    # num_total += enroll_waveforms.size(0)
+    # num_success += decisions.sum().item()
+
+    # unrecorded
+    ori_waveform, _ = torchaudio.load(f'/mntcephfs/lab_data/lijiaqi/adver_out/ECAPATDNN_None_0_0.0004_0.005/{enroll_file}_{test_file}.wav')
+    ori_waveform = ori_waveform.to(device).unsqueeze(0)
+    decision2, cos2 = model.make_decision_SV(enroll_waveforms, ori_waveform)
+    print('recording cause degradation', cos1.item() - cos2.item())
+
+    # split into k_bins bins 
+    k_bins = 20
+    for i in range(k_bins):
+
+        
+
+        length = test_waveforms.size()[-1]
+        ori_waveform_copy = ori_waveform.clone()
+        ori_waveform_copy[:, :, i * length//k_bins : (i+1) * length//k_bins] = test_waveforms[:, :, i * length//k_bins : (i+1) * length//k_bins]
+        decision3, cos3 = model.make_decision_SV(enroll_waveforms, ori_waveform_copy)
+        print('cos1', cos1.item())
+        print('cos2', cos2.item())
+        print('cos3', cos3.item())
+        print(f'substituting part {i} cause degradation', cos3.item() - cos2.item())
+        print(f'proportion of degradation part {i}', (cos3.item() - cos2.item()) / (cos1.item() - cos2.item()))
+        # print(cos3.item() - cos2.item())
+        # pdb.set_trace()
+        torchaudio.save(f'part{i}.wav', ori_waveform_copy.cpu().squeeze(0), 16000)
+    exit()
 for item in dataloader:
     enroll_waveforms, test_waveforms = item[0], item[1]
     enroll_waveforms = enroll_waveforms.to(device)
