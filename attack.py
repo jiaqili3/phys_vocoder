@@ -3,6 +3,7 @@ import torch
 import torchaudio
 from torch.utils.data import DataLoader
 import os
+import pdb
 
 from attack.attacks.pgd import PGD
 import logging
@@ -75,6 +76,8 @@ def save_audio(advers, spk1_file_ids, spk2_file_ids, root, success, fs=16000):
 success_cnt = 0
 total_cnt = 0
 
+with open('./audio_clipper/2500_list.txt') as flist:
+    flist = flist.readlines()
 
 for sample_no, item in enumerate(dataloader):
     # shape: (batch_size, channels, audio_len)
@@ -87,7 +90,6 @@ for sample_no, item in enumerate(dataloader):
     if int(y) == 1:
         # only pick bona-fide audio
         continue
-    total_cnt += 1
     x1, x2, y = x1.to(device), x2.to(device), y.to(device)
 
     if config.use_alternate_pipeline:
@@ -102,17 +104,21 @@ for sample_no, item in enumerate(dataloader):
 
     flag = False
     for spk1_file_id, spk2_file_id in zip(spk1_file_ids, spk2_file_ids):
+        # only the selected will be attacked
+        if f'{spk1_file_id}_{spk2_file_id}.wav\n' not in flist:
+            flag = True
+            break
         file_name = '{}_{}'.format(spk1_file_id, spk2_file_id)
         adver_path = os.path.join(adver_dir, file_name + ".wav")
         # skip already existing ones
         if os.path.exists(adver_path):
             logging.info('adversarial audio already exists: {}'.format(adver_path))
             flag = True
-            total_cnt -= 1
             break
     if flag:
         continue
 
+    total_cnt += 1
     adver, success, score = attacker(x1, x2, y, sample_no)
     if config.use_alternate_pipeline:
         adver = adver - x2 + ori_x2
