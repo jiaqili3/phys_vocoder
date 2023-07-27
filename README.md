@@ -3,6 +3,8 @@
 - physical vocoder: `./phys_vocoder`
 - model checkpoints: `./pretrained_models`
 - utils for audio clipping: `./audio_clipper`
+- generate PGD adversarial examples: `./attack.py` and `init_attack.py`
+- test attack accuracy on ASV models: `./test.py` and `init_test.py`
 
 ## Guidelines to recovering audios
 First, convert the device recording to `.wav` format with 16000 resample rate using ffmpeg: 
