@@ -21,7 +21,7 @@ class WavDataset(Dataset):
         sample_rate: int,
         hop_length: int,
         train: bool = True,
-        eval_size=500,
+        eval_size=1000,
     ):
         # self.ori_wavs_dir = glob.glob(ori_wavs_dir)
         # self.mels_dir = ori_wavs_dir / "mels"
@@ -78,6 +78,8 @@ class WavDataset(Dataset):
         tgt_wav, _ = torchaudio.load(
             filepath=exp_wav_path,
         )
+        src_wav = src_wav / torch.max(src_wav.abs())
+        tgt_wav = tgt_wav / torch.max(tgt_wav.abs())
         assert src_wav.size() == tgt_wav.size()
         frame_diff = src_wav.shape[-1] - self.segment_length
         frame_offset = random.randint(0, max(frame_diff, 0))
