@@ -55,7 +55,7 @@ class ASVspoof2019(Dataset):
                 )
 
                 if not os.path.isfile(eval_file_path):
-                    print('skipping')
+                    # print('skipping')
                     continue
                 eval_waveform, _ = torchaudio.load(eval_file_path)
                 enroll_waveform, _ = torchaudio.load(self._flist[self.fnamepair_to_idx[line[0]]][0])

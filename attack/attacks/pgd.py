@@ -69,7 +69,8 @@ class PGD(Attack):
 
         remaining_steps = self.steps
         attack_success = False
-        while remaining_steps >= 0:
+        sum_steps = 0
+        while remaining_steps >= 0 and sum_steps < 400:
             if adv_x2.dim() != 3:
                 assert adv_x2.dim() == 2
                 adv_x2 = adv_x2.unsqueeze(0)
@@ -92,7 +93,7 @@ class PGD(Attack):
                 attack_success = True
                 if remaining_steps == 0:
                     remaining_steps -= 1
-
+            sum_steps += 1
             # Update adversarial x2
             grad = torch.autograd.grad(cost, adv_x2,
                                        retain_graph=False, create_graph=False)[0]

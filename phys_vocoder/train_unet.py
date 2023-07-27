@@ -43,7 +43,7 @@ SEGMENT_LENGTH = 32768*2
 HOP_LENGTH = 160
 SAMPLE_RATE = 16000
 BASE_LEARNING_RATE = 2e-4
-FINETUNE_LEARNING_RATE = 1e-5
+FINETUNE_LEARNING_RATE = 5e-6
 BETAS = (0.8, 0.99)
 LEARNING_RATE_DECAY = 0.999
 WEIGHT_DECAY = 1e-5
@@ -51,7 +51,7 @@ EPOCHS = 500
 LOG_INTERVAL = 5
 VALIDATION_INTERVAL = 1000
 NUM_GENERATED_EXAMPLES = 10
-CHECKPOINT_INTERVAL = 3000000
+CHECKPOINT_INTERVAL = 30000
 
 def loss_func(out, tgt, spectrogram, enroll, asv_model):
     spec_out = spectrogram(out)
@@ -63,7 +63,7 @@ def loss_func(out, tgt, spectrogram, enroll, asv_model):
     _, cos1 = asv_model.make_decision_SV(enroll, out)
     _, cos2 = asv_model.make_decision_SV(enroll, tgt)
     # print(torch.abs(cos1-cos2).mean())
-    return 0.1*spec_loss + 0.9*wav_loss + 10*torch.abs(cos1-cos2).mean()
+    return 0.1*spec_loss + 0.9*wav_loss + 6*torch.abs(cos1-cos2).mean()
 
 def plot_spectrogram(specgram, title=None, ylabel="freq_bin"):
     fig, axs = plt.subplots(1, 1)
@@ -150,7 +150,7 @@ def train_model(rank, world_size, args):
     )
     validation_loader = DataLoader(
         validation_dataset,
-        batch_size=1,
+        batch_size=16,
         shuffle=False,
         num_workers=1,
         pin_memory=True,
@@ -217,16 +217,6 @@ def train_model(rank, world_size, args):
                         loss_generator.item(),
                         global_step,
                     )
-                try:
-                    for j in range(NUM_GENERATED_EXAMPLES):
-                        writer.add_audio(
-                            f"train_outmintgt/wav_{j}",
-                            out[j]-tgt[j],
-                            0,
-                            sample_rate=16000,
-                        )
-                except:
-                    pass
 
             if global_step % VALIDATION_INTERVAL == 0:
             # if True:
@@ -234,9 +224,13 @@ def train_model(rank, world_size, args):
 
                 average_validation_loss = 0
                 average_pesq = 0
+                num_generated = 0
                 for j, (_, src, tgt) in enumerate(validation_loader, 1):
                     src, tgt = src.to(rank), tgt.to(rank)
 
+                    enroll_waveform = random.choice(enroll_flist)
+                    enroll_waveform, _ = torchaudio.load(enroll_waveform)
+                    enroll_waveform = enroll_waveform.to(rank)
 
                     with torch.no_grad():
                         out = generator(src)
@@ -246,7 +240,11 @@ def train_model(rank, world_size, args):
                     # change loss
                     validation_loss = loss_func(out, tgt, spectrogram, enroll_waveform, asv_model)
                     try:
-                        pesq = compute_PESQ(out.reshape(-1).cpu().numpy(), tgt.reshape(-1).cpu().numpy())
+                        pesq = 0.0
+                        for i in range(out.shape[0]):
+                            pesq = pesq + compute_PESQ(out[i].reshape(-1).cpu().numpy(), tgt[i].reshape(-1).cpu().numpy())
+                            # pesq = compute_PESQ(out.reshape(-1).cpu().numpy(), tgt.reshape(-1).cpu().numpy())
+                        pesq = pesq / out.shape[0]
                     except:
                         print(out.shape, tgt.shape)
                         pesq = 0.0
@@ -268,46 +266,33 @@ def train_model(rank, world_size, args):
                     #     average_spec_diff += (
                     #         torch.sum(spec_diff, dim=1) - average_spec_diff
                     #     ) / j
-
                     if rank == 0:
-                        if j <= NUM_GENERATED_EXAMPLES:
-                            spec_out = spectrogram(out)
-                            spec_tgt = spectrogram(tgt)
-                            spec_src = spectrogram(src)
-                            writer.add_audio(
-                                f"src/wav_{j}",
-                                src,
-                                global_step,
-                                sample_rate=16000,
-                            )
-                            writer.add_audio(
-                                f"out/wav_{j}",
-                                out,
-                                global_step,
-                                sample_rate=16000,
-                            )
-                            writer.add_audio(
-                                f"tgt/wav_{j}",
-                                tgt,
-                                global_step,
-                                sample_rate=16000,
-                            )
-                            writer.add_audio(
-                                f"outmintgt/wav_{j}",
-                                out-tgt,
-                                global_step,
-                                sample_rate=16000,
-                            )
-                            # writer.add_audio(
-                            #     f"wav_diff/wav_{j}",
-                            #     src-tgt,
-                            #     global_step,
-                            #     sample_rate=16000,
-                            # )
+                        spec_out_ = spectrogram(out)
+                        spec_tgt_ = spectrogram(tgt)
+                        spec_src_ = spectrogram(src)
 
-                            spec_out = spec_out.squeeze(0).squeeze(0).cpu()
-                            spec_tgt = spec_tgt.squeeze(0).squeeze(0).cpu()
-                            spec_src = spec_src.squeeze(0).squeeze(0).cpu()
+                        for n in range(spec_out_.shape[0]):
+                            writer.add_audio(
+                                f"src/wav_{n}",
+                                src[n],
+                                0,
+                                sample_rate=16000,
+                            )
+                            writer.add_audio(
+                                f"out/wav_{n}",
+                                out[n],
+                                0,
+                                sample_rate=16000,
+                            )
+                            writer.add_audio(
+                                f"tgt/wav_{n}",
+                                tgt[n],
+                                0,
+                                sample_rate=16000,
+                            )
+                            spec_out = spec_out_[n].squeeze(0).cpu()
+                            spec_tgt = spec_tgt_[n].squeeze(0).cpu()
+                            spec_src = spec_src_[n].squeeze(0).cpu()
                             spec_outminsrc = spec_out - spec_src
                             spec_tgtminsrc = spec_tgt - spec_src
                             # writer.add_figure(
@@ -340,7 +325,11 @@ def train_model(rank, world_size, args):
                                 plot_spectrogram(spec_out.numpy() - spec_tgt.numpy()),
                                 0,
                             )
-                            
+                                
+                            num_generated += 1
+                            if num_generated > NUM_GENERATED_EXAMPLES:
+                                break
+
 
                 generator.train()
 
@@ -413,14 +402,14 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--checkpoint_dir",
-        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0726_mixedloss1_normalized',
+        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0727_mixedloss1_normalized',
         metavar="checkpoint-dir",
         help="path to the checkpoint directory",
         type=Path,
     )
     parser.add_argument(
         "--resume",
-        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0719_mixedloss_normalized/model-3264000.pt',
+        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0726_mixedloss1_normalized/model-513000.pt',
         help="path to the checkpoint to resume from",
         type=Path,
     )
