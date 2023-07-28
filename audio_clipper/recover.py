@@ -6,13 +6,14 @@ import torchaudio.functional as F
 import os
 from pathlib import Path
 import pdb
+import torch
 
 # put this to the second at the beginning of the first pulse
 # make it 0 if the audio's already starting with the first pulse
 offset = int(
-    (19*3600*16000) + # hour
-    (36*60*16000) + # minute
-    (47.2 * 16000) # second
+    # (19*3600*16000) + # hour
+    # (36*60*16000) + # minute
+    (24.0 * 16000) # second
 )
 device = 'iphone'
 # which folder to save the recovered audios
@@ -20,10 +21,10 @@ save_folder = f'/mntcephfs/lab_data/lijiaqi/phys_vocoder_recordings/'
 # os.makedirs(save_folder, exist_ok=True)
 
 # the path to the full audio, must be ending with ".wav"
-full_audio_path = f"iphone.wav"
+full_audio_path = f"/home/lijiaqi/phys_vocoder/audio_clipper/iphone1.wav"
 
 # the path to the pkl file
-pkl_path = f'./audio_meta_0715_2.pkl'
+pkl_path = f'./audio_meta_0722_2.pkl'
 
 # config is done
 
@@ -38,7 +39,10 @@ def main():
     rec_full_waveform, sr = torchaudio.load(full_audio_path)
     # rec_full_waveform = F.resample(rec_full_waveform, sr, 16000)
     assert sr == 16000
-    rec_full_waveform = rec_full_waveform[:, offset:]
+    if rec_full_waveform.shape[0] == 1:
+        rec_full_waveform = rec_full_waveform[:, offset:]
+    else:
+        rec_full_waveform = rec_full_waveform[1:, offset:]
 
     curr_pulse_point_start = 0
     # find the largest pulse in the first 1s and reassign the start point

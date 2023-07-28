@@ -38,20 +38,20 @@ logger = logging.getLogger(__name__)
 
 
 # BATCH_SIZE = 256
-BATCH_SIZE = 16
+BATCH_SIZE = 60
 SEGMENT_LENGTH = 32768*2
 HOP_LENGTH = 160
 SAMPLE_RATE = 16000
 BASE_LEARNING_RATE = 2e-4
 FINETUNE_LEARNING_RATE = 5e-6
 BETAS = (0.8, 0.99)
-LEARNING_RATE_DECAY = 0.999
+LEARNING_RATE_DECAY = 0.995
 WEIGHT_DECAY = 1e-5
 EPOCHS = 500
 LOG_INTERVAL = 5
 VALIDATION_INTERVAL = 1000
 NUM_GENERATED_EXAMPLES = 10
-CHECKPOINT_INTERVAL = 30000
+CHECKPOINT_INTERVAL = 20000
 
 def loss_func(out, tgt, spectrogram, enroll, asv_model):
     spec_out = spectrogram(out)
@@ -168,8 +168,8 @@ def train_model(rank, world_size, args):
     generator = DDP(generator, device_ids=[rank])
 
 
-    if args.finetune:
-        global_step, best_loss = 0, float("inf")
+    # if args.finetune:
+    #     global_step, best_loss = 0, float("inf")
 
     n_epochs = EPOCHS
     start_epoch = global_step // BATCH_SIZE // world_size // len(train_loader) + 1
@@ -385,7 +385,7 @@ def train_model(rank, world_size, args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Train or finetune HiFi-GAN.")
+    parser = argparse.ArgumentParser(description="Train or finetune UNet.")
     parser.add_argument(
         "--dataset_dir",
         default='/mntcephfs/lab_data/lijiaqi/adver_out/dataset_iphone/*.wav',
@@ -409,7 +409,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--resume",
-        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0726_mixedloss1_normalized/model-513000.pt',
+        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0727_mixedloss1_normalized/model-480000.pt',
         help="path to the checkpoint to resume from",
         type=Path,
     )
