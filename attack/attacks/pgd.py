@@ -4,8 +4,8 @@ import torch.nn as nn
 from ..attack import Attack
 from ..models.loss import SpeakerVerificationLoss
 import pdb
-from torch.utils.tensorboard import SummaryWriter
-writer = SummaryWriter()
+# from torch.utils.tensorboard import SummaryWriter
+# writer = SummaryWriter()
 
 class PGD(Attack):
     r"""

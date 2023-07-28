@@ -3,7 +3,10 @@ from pathlib import Path
 import torchaudio
 import torch
 import glob
+from attack.models.RawNet import RawNet3
 from attack.models.ECAPATDNN import ECAPATDNN
+from attack.models.ResNetSE34V2 import ResNetSE34V2
+from attack.models.tdnn import XVEC1
 from attack.models.model_config import config as model_config
 from dataset.asvspoof2019 import ASVspoof2019
 from init_test import config
@@ -13,9 +16,16 @@ import pdb
 from phys_vocoder.hifigan.generator import HifiganEndToEnd
 from phys_vocoder.unet.unet import UNetEndToEnd
 
-model = ECAPATDNN(**model_config['ECAPATDNN'])
-model.load_state_dict(torch.load('./pretrained_models/ECAPATDNN.pth'))
-model.threshold = 0.33709782361984253
+# ECAPATDNN
+# model = ECAPATDNN(**model_config['ECAPATDNN'])
+# model.load_state_dict(torch.load('./pretrained_models/ECAPATDNN.pth'))
+# model.threshold = 0.33709782361984253
+
+# RawNet3
+model = RawNet3(**model_config['RawNet3'])
+model.load_state_dict(torch.load('./pretrained_models/rawnet3.pt'))
+model.threshold = 0.3295809328556061
+
 device = 'cuda:0'
 model = model.to(device)
 model.eval()
@@ -49,7 +59,7 @@ dataloader = dataset.get_attack_pairs('attackResult.txt', '/mntcephfs/lab_data/l
 #     # num_success += decisions.sum().item()
 
 #     # unrecorded
-#     ori_waveform, _ = torchaudio.load(f'/mntcephfs/lab_data/lijiaqi/adver_out/ECAPATDNN_None_0_0.0004_0.005/{enroll_file}_{test_file}.wav')
+#     ori_waveform, _ = torchaudio.load(f'/mntcephfs/lab_data/lijiaqi/adver_out/old_2500/ECAPATDNN_None_0_0.0004_0.005/{enroll_file}_{test_file}.wav')
 #     ori_waveform = ori_waveform.to(device).unsqueeze(0)
 #     decision2, cos2 = model.make_decision_SV(enroll_waveforms, ori_waveform)
 #     print('recording cause degradation', cos1.item() - cos2.item())
@@ -96,7 +106,7 @@ dataloader = dataset.get_attack_pairs('attackResult.txt', '/mntcephfs/lab_data/l
 #     # num_success += decisions.sum().item()
 
 #     # unrecorded
-#     ori_waveform, _ = torchaudio.load(f'/mntcephfs/lab_data/lijiaqi/adver_out/ECAPATDNN_None_0_0.0004_0.005/{enroll_file}_{test_file}.wav')
+#     ori_waveform, _ = torchaudio.load(f'/mntcephfs/lab_data/lijiaqi/adver_out/old_2500/ECAPATDNN_None_0_0.0004_0.005/{enroll_file}_{test_file}.wav')
 #     ori_waveform = ori_waveform.to(device).unsqueeze(0)
 #     decision2, cos2 = model.make_decision_SV(enroll_waveforms, ori_waveform)
 #     # print('recording cause degradation', cos1.item() - cos2.item())
@@ -130,7 +140,8 @@ dataloader = dataset.get_attack_pairs('attackResult.txt', '/mntcephfs/lab_data/l
 # examine vocoder effects 
 vocoder = UNetEndToEnd()
 vocoder.to(device)
-vocoder.load_model('/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0717_mixedloss_0717recdata/model-33744000.pt', device)
+# vocoder.load_model('/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0717_mixedloss_0717recdata/model-33744000.pt', device)
+vocoder.load_model('/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0727_mixedloss1_normalized/model-1344000.pt', device)
 # vocoder.load_model('/mntcephfs/lab_data/lijiaqi/hifigan-checkpoints/0630/model-115000.pt', device)
 
 for audio_no, item in enumerate(dataloader):
@@ -150,7 +161,7 @@ for audio_no, item in enumerate(dataloader):
     # num_success += decisions.sum().item()
 
     # unrecorded
-    ori_waveform, _ = torchaudio.load(f'/mntcephfs/lab_data/lijiaqi/adver_out/ECAPATDNN_None_0_0.0004_0.005/{enroll_file}_{test_file}.wav')
+    ori_waveform, _ = torchaudio.load(f'/mntcephfs/lab_data/lijiaqi/adver_out/old_2500/ECAPATDNN_None_0_0.0004_0.005/{enroll_file}_{test_file}.wav')
     ori_waveform = ori_waveform.to(device).unsqueeze(0)
     decision2, cos2 = model.make_decision_SV(enroll_waveforms, ori_waveform)
     # print('recording cause degradation', cos1.item() - cos2.item())
@@ -159,7 +170,8 @@ for audio_no, item in enumerate(dataloader):
     # vocoder inference 
     ori_waveform_copy = ori_waveform.clone()
     wav3 = vocoder(ori_waveform_copy)
-    decision3, cos3 = model.make_decision_SV(enroll_waveforms, wav3)
+    # decision3, cos3 = model.make_decision_SV(enroll_waveforms, wav3)
+    decision3, cos3 = model.make_decision_SV(wav3, wav3)
     print('cos1', cos1.item())
     print('cos2', cos2.item())
     print('cos3', cos3.item())
