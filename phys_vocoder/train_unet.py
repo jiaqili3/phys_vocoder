@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 
 # BATCH_SIZE = 256
-BATCH_SIZE = 60
+BATCH_SIZE = 70
 SEGMENT_LENGTH = 32768*2
 HOP_LENGTH = 160
 SAMPLE_RATE = 16000
@@ -59,11 +59,17 @@ def loss_func(out, tgt, spectrogram, enroll, asv_model):
     spec_loss = F.l1_loss(spec_out, spec_tgt)
     wav_loss = F.l1_loss(out, tgt)
 
-    enroll = torch.cat([enroll.unsqueeze(0)]*spec_out.shape[0], dim=0)
-    _, cos1 = asv_model.make_decision_SV(enroll, out)
-    _, cos2 = asv_model.make_decision_SV(enroll, tgt)
+    spec_loss_l2 = F.mse_loss(spec_out, spec_tgt)
+
+    # enroll = torch.cat([enroll.unsqueeze(0)]*spec_out.shape[0], dim=0)
+    # _, cos1 = asv_model.make_decision_SV(enroll, out)
+    # _, cos2 = asv_model.make_decision_SV(enroll, tgt)
     # print(torch.abs(cos1-cos2).mean())
-    return 0.1*spec_loss + 0.9*wav_loss + 6*torch.abs(cos1-cos2).mean()
+    # return 0.1*spec_loss + 0.9*wav_loss + 6*torch.abs(cos1-cos2).mean()
+    # pdb.set_trace()
+    cos3 = 1 - asv_model.make_decision_SV(out, tgt)[1]
+    return 0.05*spec_loss + 2*wav_loss + 0.002*spec_loss_l2 + 5*cos3.mean()
+    # return 0.1*spec_loss + 0.9*wav_loss + 6*cos3.mean()
 
 def plot_spectrogram(specgram, title=None, ylabel="freq_bin"):
     fig, axs = plt.subplots(1, 1)
@@ -168,8 +174,8 @@ def train_model(rank, world_size, args):
     generator = DDP(generator, device_ids=[rank])
 
 
-    # if args.finetune:
-    #     global_step, best_loss = 0, float("inf")
+    if args.finetune:
+        global_step, best_loss = 0, float("inf")
 
     n_epochs = EPOCHS
     start_epoch = global_step // BATCH_SIZE // world_size // len(train_loader) + 1
@@ -188,6 +194,8 @@ def train_model(rank, world_size, args):
         generator.train()
         average_loss_generator = 0
         for i, (_, src_wav, tgt_wav) in enumerate(train_loader, 1):
+            if i == 0 and rank == 0:
+                os.system("nvidia-smi")
             src_wav, tgt_wav = src_wav.to(rank), tgt_wav.to(rank)
             out = generator(src_wav)
 
@@ -402,14 +410,14 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--checkpoint_dir",
-        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0727_mixedloss1_normalized',
+        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0728_mixedloss2_normalized',
         metavar="checkpoint-dir",
         help="path to the checkpoint directory",
         type=Path,
     )
     parser.add_argument(
         "--resume",
-        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0727_mixedloss1_normalized/model-480000.pt',
+        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0727_mixedloss1_normalized/model-1344000.pt',
         help="path to the checkpoint to resume from",
         type=Path,
     )
