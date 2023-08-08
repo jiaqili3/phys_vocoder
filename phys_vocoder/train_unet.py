@@ -38,12 +38,12 @@ logger = logging.getLogger(__name__)
 
 
 # BATCH_SIZE = 256
-BATCH_SIZE = 70
+BATCH_SIZE = 50
 SEGMENT_LENGTH = 32768*2
 HOP_LENGTH = 160
 SAMPLE_RATE = 16000
 BASE_LEARNING_RATE = 2e-4
-FINETUNE_LEARNING_RATE = 5e-6
+FINETUNE_LEARNING_RATE = 1e-6
 BETAS = (0.8, 0.99)
 LEARNING_RATE_DECAY = 0.995
 WEIGHT_DECAY = 1e-5
@@ -61,14 +61,14 @@ def loss_func(out, tgt, spectrogram, enroll, asv_model):
 
     spec_loss_l2 = F.mse_loss(spec_out, spec_tgt)
 
-    # enroll = torch.cat([enroll.unsqueeze(0)]*spec_out.shape[0], dim=0)
-    # _, cos1 = asv_model.make_decision_SV(enroll, out)
-    # _, cos2 = asv_model.make_decision_SV(enroll, tgt)
+    enroll = torch.cat([enroll.unsqueeze(0)]*spec_out.shape[0], dim=0)
+    _, cos1 = asv_model.make_decision_SV(enroll, out)
+    _, cos2 = asv_model.make_decision_SV(enroll, tgt)
     # print(torch.abs(cos1-cos2).mean())
-    # return 0.1*spec_loss + 0.9*wav_loss + 6*torch.abs(cos1-cos2).mean()
+    return 0.05*spec_loss + 0.9*wav_loss + 0.002*spec_loss_l2 + 10*torch.abs(cos1-cos2).mean()
     # pdb.set_trace()
-    cos3 = 1 - asv_model.make_decision_SV(out, tgt)[1]
-    return 0.05*spec_loss + 2*wav_loss + 0.002*spec_loss_l2 + 5*cos3.mean()
+    # cos3 = 1 - asv_model.make_decision_SV(out, tgt)[1]
+    # return 0.05*spec_loss + 2*wav_loss + 0.002*spec_loss_l2 + 5*cos3.mean()
     # return 0.1*spec_loss + 0.9*wav_loss + 6*cos3.mean()
 
 def plot_spectrogram(specgram, title=None, ylabel="freq_bin"):
@@ -186,7 +186,7 @@ def train_model(rank, world_size, args):
     logger.info(f"total of epochs: {n_epochs}")
     logger.info(f"started at epoch: {start_epoch}")
     logger.info("**" * 40 + "\n")
-    enroll_flist = glob.glob('./enroll_waveforms/*.wav')
+    enroll_flist = glob.glob('/mntnfs/lee_data1/wangli/ASVspoof2019/PA/ASVspoof2019_PA_train_bonafide/*.wav')
 
     for epoch in range(start_epoch, n_epochs + 1):
         train_sampler.set_epoch(epoch)
@@ -194,8 +194,6 @@ def train_model(rank, world_size, args):
         generator.train()
         average_loss_generator = 0
         for i, (_, src_wav, tgt_wav) in enumerate(train_loader, 1):
-            if i == 0 and rank == 0:
-                os.system("nvidia-smi")
             src_wav, tgt_wav = src_wav.to(rank), tgt_wav.to(rank)
             out = generator(src_wav)
 
@@ -280,24 +278,24 @@ def train_model(rank, world_size, args):
                         spec_src_ = spectrogram(src)
 
                         for n in range(spec_out_.shape[0]):
-                            writer.add_audio(
-                                f"src/wav_{n}",
-                                src[n],
-                                0,
-                                sample_rate=16000,
-                            )
-                            writer.add_audio(
-                                f"out/wav_{n}",
-                                out[n],
-                                0,
-                                sample_rate=16000,
-                            )
-                            writer.add_audio(
-                                f"tgt/wav_{n}",
-                                tgt[n],
-                                0,
-                                sample_rate=16000,
-                            )
+                            # writer.add_audio(
+                            #     f"src/wav_{n}",
+                            #     src[n],
+                            #     0,
+                            #     sample_rate=16000,
+                            # )
+                            # writer.add_audio(
+                            #     f"out/wav_{n}",
+                            #     out[n],
+                            #     0,
+                            #     sample_rate=16000,
+                            # )
+                            # writer.add_audio(
+                            #     f"tgt/wav_{n}",
+                            #     tgt[n],
+                            #     0,
+                            #     sample_rate=16000,
+                            # )
                             spec_out = spec_out_[n].squeeze(0).cpu()
                             spec_tgt = spec_tgt_[n].squeeze(0).cpu()
                             spec_src = spec_src_[n].squeeze(0).cpu()
@@ -308,31 +306,31 @@ def train_model(rank, world_size, args):
                             #     plot_spectrogram(spec_diff.cpu().numpy()),
                             #     global_step,
                             # )
-                            writer.add_figure(
-                                f"spec_out/spec_{j}",
-                                plot_spectrogram(spec_out.numpy()),
-                                0,
-                            )
-                            writer.add_figure(
-                                f"spec_tgt/spec_{j}",
-                                plot_spectrogram(spec_tgt.numpy()),
-                                0,
-                            )
-                            writer.add_figure(
-                                f"spec_outminsrc/spec_{j}",
-                                plot_spectrogram(spec_outminsrc.numpy()),
-                                0,
-                            )
-                            writer.add_figure(
-                                f"spec_tgtminsrc/spec_{j}",
-                                plot_spectrogram(spec_tgtminsrc.numpy()),
-                                0,
-                            )
-                            writer.add_figure(
-                                f"spec_outmintgt/spec_{j}",
-                                plot_spectrogram(spec_out.numpy() - spec_tgt.numpy()),
-                                0,
-                            )
+                            # writer.add_figure(
+                            #     f"spec_out/spec_{j}",
+                            #     plot_spectrogram(spec_out.numpy()),
+                            #     0,
+                            # )
+                            # writer.add_figure(
+                            #     f"spec_tgt/spec_{j}",
+                            #     plot_spectrogram(spec_tgt.numpy()),
+                            #     0,
+                            # )
+                            # writer.add_figure(
+                            #     f"spec_outminsrc/spec_{j}",
+                            #     plot_spectrogram(spec_outminsrc.numpy()),
+                            #     0,
+                            # )
+                            # writer.add_figure(
+                            #     f"spec_tgtminsrc/spec_{j}",
+                            #     plot_spectrogram(spec_tgtminsrc.numpy()),
+                            #     0,
+                            # )
+                            # writer.add_figure(
+                            #     f"spec_outmintgt/spec_{j}",
+                            #     plot_spectrogram(spec_out.numpy() - spec_tgt.numpy()),
+                            #     0,
+                            # )
                                 
                             num_generated += 1
                             if num_generated > NUM_GENERATED_EXAMPLES:
@@ -410,7 +408,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--checkpoint_dir",
-        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0728_mixedloss2_normalized',
+        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0729_mixedloss3_normalized',
         metavar="checkpoint-dir",
         help="path to the checkpoint directory",
         type=Path,
