@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 
 # BATCH_SIZE = 256
-BATCH_SIZE = 50
+BATCH_SIZE = 4
 SEGMENT_LENGTH = 32768*2
 HOP_LENGTH = 160
 SAMPLE_RATE = 16000
@@ -56,20 +56,17 @@ CHECKPOINT_INTERVAL = 20000
 def loss_func(out, tgt, spectrogram, enroll, asv_model):
     spec_out = spectrogram(out)
     spec_tgt = spectrogram(tgt)
-    spec_loss = F.l1_loss(spec_out, spec_tgt)
-    wav_loss = F.l1_loss(out, tgt)
+    # spec_loss = F.l1_loss(spec_out, spec_tgt)
+    # wav_loss = F.l1_loss(out, tgt)
 
-    spec_loss_l2 = F.mse_loss(spec_out, spec_tgt)
+    # return spec_loss
 
     enroll = torch.cat([enroll.unsqueeze(0)]*spec_out.shape[0], dim=0)
     _, cos1 = asv_model.make_decision_SV(enroll, out)
     _, cos2 = asv_model.make_decision_SV(enroll, tgt)
     # print(torch.abs(cos1-cos2).mean())
-    return 0.05*spec_loss + 0.9*wav_loss + 0.002*spec_loss_l2 + 10*torch.abs(cos1-cos2).mean()
-    # pdb.set_trace()
-    # cos3 = 1 - asv_model.make_decision_SV(out, tgt)[1]
-    # return 0.05*spec_loss + 2*wav_loss + 0.002*spec_loss_l2 + 5*cos3.mean()
-    # return 0.1*spec_loss + 0.9*wav_loss + 6*cos3.mean()
+    # return 0.1*spec_loss + 6*torch.abs(cos1-cos2).mean()
+    return torch.abs(cos1-cos2).mean()
 
 def plot_spectrogram(specgram, title=None, ylabel="freq_bin"):
     fig, axs = plt.subplots(1, 1)
@@ -88,8 +85,11 @@ def train_model(rank, world_size, args):
         world_size=world_size,
         init_method="tcp://localhost:54328",
     )
-    asv_model = config.model.to(rank)
-    asv_model.eval()
+    if config.model is not None:
+        asv_model = config.model.to(rank)
+        asv_model.eval()
+    else:
+        asv_model = None
     spectrogram = transforms.Spectrogram(
                 n_fft=1024,
                 win_length=1024,
@@ -186,7 +186,7 @@ def train_model(rank, world_size, args):
     logger.info(f"total of epochs: {n_epochs}")
     logger.info(f"started at epoch: {start_epoch}")
     logger.info("**" * 40 + "\n")
-    enroll_flist = glob.glob('/mntnfs/lee_data1/wangli/ASVspoof2019/PA/ASVspoof2019_PA_train_bonafide/*.wav')
+    enroll_flist = glob.glob('./enroll_waveforms/*.wav')
 
     for epoch in range(start_epoch, n_epochs + 1):
         train_sampler.set_epoch(epoch)
@@ -408,14 +408,14 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--checkpoint_dir",
-        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0729_mixedloss3_normalized',
+        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0810_rawnet_finetune',
         metavar="checkpoint-dir",
         help="path to the checkpoint directory",
         type=Path,
     )
     parser.add_argument(
         "--resume",
-        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0727_mixedloss1_normalized/model-1344000.pt',
+        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0808_mixedloss1_normalized_pretrain/model-462000.pt',
         help="path to the checkpoint to resume from",
         type=Path,
     )
