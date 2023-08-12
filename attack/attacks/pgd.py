@@ -42,7 +42,8 @@ class PGD(Attack):
         self.supported_mode = ['default', 'targeted']
         self.loss = SpeakerVerificationLoss(threshold=self.model.threshold)
 
-    def forward(self, x1, x2, y, runno):
+    def forward(self, x1, x2, y, runno, df = None):
+        # df: a dataframe(dictionary) to store the results
         r"""
         Overridden.
         """
@@ -109,5 +110,8 @@ class PGD(Attack):
             #     best_adv_x2 = adv_x2.clone().detach()
             #     best_decision = decision.clone().detach()
 
+        df['steps'].append(sum_steps)
+        df['max_perturbation'].append(torch.max(torch.abs(adv_x2 - x2)).item())
+        df['success'].append(attack_success)
         return adv_x2.clone().detach(), decision.clone().detach(), cost
         # return best_adv_x2, best_decision, best_cost

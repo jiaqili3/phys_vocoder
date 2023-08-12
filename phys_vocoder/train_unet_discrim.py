@@ -30,7 +30,7 @@ sys.path.append('..')
 sys.path.append('.')
 from phys_vocoder.dataset import WavDataset
 # from hifigan.utils import load_checkpoint, save_checkpoint, plot_spectrogram
-from .discriminator.UNetDiscriminator import UNetDiscriminator
+from discriminator.UNetDiscriminator import UNetDiscriminator, discriminator_loss, generator_loss, feature_loss
 from phys_vocoder.unet.unet import UNet
 
 logging.basicConfig(level=logging.INFO)
@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 
 # BATCH_SIZE = 256
-BATCH_SIZE = 3
+BATCH_SIZE = 6
 SEGMENT_LENGTH = 32768*2
 HOP_LENGTH = 160
 SAMPLE_RATE = 16000
@@ -53,20 +53,26 @@ VALIDATION_INTERVAL = 1000
 NUM_GENERATED_EXAMPLES = 10
 CHECKPOINT_INTERVAL = 20000
 
+def spec_loss(out, tgt, spectrogram):
+    spec_out = spectrogram(out)
+    spec_tgt = spectrogram(tgt)
+    spec_loss = F.l1_loss(spec_out, spec_tgt)
+    return spec_loss
+
 def loss_func(out, tgt, spectrogram, enroll, asv_model):
     spec_out = spectrogram(out)
     spec_tgt = spectrogram(tgt)
-    # spec_loss = F.l1_loss(spec_out, spec_tgt)
+    spec_loss = F.l1_loss(spec_out, spec_tgt)
     # wav_loss = F.l1_loss(out, tgt)
 
-    # return spec_loss
+    return spec_loss
 
-    enroll = torch.cat([enroll.unsqueeze(0)]*spec_out.shape[0], dim=0)
-    _, cos1 = asv_model.make_decision_SV(enroll, out)
-    _, cos2 = asv_model.make_decision_SV(enroll, tgt)
+    # enroll = torch.cat([enroll.unsqueeze(0)]*spec_out.shape[0], dim=0)
+    # _, cos1 = asv_model.make_decision_SV(enroll, out)
+    # _, cos2 = asv_model.make_decision_SV(enroll, tgt)
     # print(torch.abs(cos1-cos2).mean())
     # return 0.1*spec_loss + 6*torch.abs(cos1-cos2).mean()
-    return torch.abs(cos1-cos2).mean()
+    # return torch.abs(cos1-cos2).mean()
 
 def plot_spectrogram(specgram, title=None, ylabel="freq_bin"):
     fig, axs = plt.subplots(1, 1)
@@ -125,7 +131,7 @@ def train_model(rank, world_size, args):
         weight_decay=WEIGHT_DECAY,
     )
     optimizer_discriminator = optim.AdamW(
-        generator.parameters(),
+        discriminator.parameters(),
         lr=BASE_LEARNING_RATE if not args.finetune else FINETUNE_LEARNING_RATE,
         betas=BETAS,
         weight_decay=WEIGHT_DECAY,
@@ -203,26 +209,49 @@ def train_model(rank, world_size, args):
 
         generator.train()
         discriminator.train()
-        average_loss_generator = average_loss_discriminator = 0
+        average_loss_generator = average_loss_discriminator = average_loss_spec = 0
         for i, (_, src_wav, tgt_wav) in enumerate(train_loader, 1):
             src_wav, tgt_wav = src_wav.to(rank), tgt_wav.to(rank)
             out = generator(src_wav)
 
-            enroll_waveform = random.choice(enroll_flist)
-            enroll_waveform, _ = torchaudio.load(enroll_waveform)
-            enroll_waveform = enroll_waveform.to(rank)
+            # Discriminator
+            optimizer_discriminator.zero_grad()
+
+            scores, scores_, _, _ = discriminator(tgt_wav, out.detach())
+
+            loss_discriminator, _, _ = discriminator_loss(scores, scores_)
+
+            loss_discriminator.backward()
+            optimizer_discriminator.step()
+
+
+            # enroll_waveform = random.choice(enroll_flist)
+            # enroll_waveform, _ = torchaudio.load(enroll_waveform)
+            # enroll_waveform = enroll_waveform.to(rank)
 
             # Generator
             optimizer_generator.zero_grad()
+            scores, scores_, features, features_ = discriminator(tgt_wav, out.detach())
+            
+            loss_features = feature_loss(features, features_)
+            loss_generator_adversarial, _ = generator_loss(scores_)
+            loss_spec = spec_loss(out, tgt_wav, spectrogram)
+            # pdb.set_trace()
+            loss_generator = loss_generator_adversarial + 20*loss_spec + loss_features*10
+
+
 
             # loss_generator = F.l1_loss(out, tgt_wav)
             # change loss
-            loss_generator = loss_func(out, tgt_wav, spectrogram, enroll_waveform, asv_model)
+            # loss_generator = loss_func(out, tgt_wav, spectrogram, enroll_waveform, asv_model)
             loss_generator.backward()
             optimizer_generator.step()
 
             global_step += 1 * world_size * BATCH_SIZE
-
+            average_loss_spec += (loss_spec.item() - average_loss_spec) / i
+            average_loss_discriminator += (
+                loss_discriminator.item() - average_loss_discriminator
+            ) / i
             average_loss_generator += (
                 loss_generator.item() - average_loss_generator
             ) / i
@@ -232,6 +261,16 @@ def train_model(rank, world_size, args):
                     writer.add_scalar(
                         "train/loss_generator",
                         loss_generator.item(),
+                        global_step,
+                    )
+                    writer.add_scalar(
+                        "train/loss_discriminator",
+                        loss_discriminator.item(),
+                        global_step,
+                    )
+                    writer.add_scalar(
+                        "train/loss_spec",
+                        loss_spec.item(),
                         global_step,
                     )
 
