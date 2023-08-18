@@ -4,7 +4,7 @@ import torchaudio
 from torch.utils.data import DataLoader
 import os
 import pdb
-
+import pandas
 from attack.attacks.pgd import PGD
 import logging
 from dataset.asvspoof2019 import ASVspoof2019
@@ -50,6 +50,7 @@ combined_model.eval()
 combined_model.threshold = model.threshold
 
 attacker = PGD(combined_model, steps=config.attack.steps, alpha=config.attack.alpha, random_start=False, eps=config.attack.eps)
+attacker.adver_dir = adver_dir
 
 # data
 dataset_name = 'ASVspoof2019'
@@ -68,7 +69,8 @@ def save_audio(advers, spk1_file_ids, spk2_file_ids, root, success, fs=16000):
         adver = adver.detach().cpu()
         adver = torch.unsqueeze(adver, 0)
         logging.info(f'saved to {adver_path}')
-        torchaudio.save(adver_path, adver, fs)
+        # pdb.set_trace()
+        torchaudio.save(adver_path, adver, fs, encoding='PCM_S', bits_per_sample=16)
         result_file.write('{} {}\n'.format(file_name, suc))
     result_file.close()
 
@@ -78,6 +80,8 @@ total_cnt = 0
 
 with open('./audio_clipper/2500_list.txt') as flist:
     flist = flist.readlines()
+
+df = {'steps': [], 'max_perturbation': [], 'success': []}
 
 for sample_no, item in enumerate(dataloader):
     # shape: (batch_size, channels, audio_len)
@@ -119,7 +123,7 @@ for sample_no, item in enumerate(dataloader):
         continue
 
     total_cnt += 1
-    adver, success, score = attacker(x1, x2, y, sample_no)
+    adver, success, score = attacker(x1, x2, y, sample_no, df)
     if config.use_alternate_pipeline:
         adver = adver - x2 + ori_x2
     logging.info(f'attack score: {score.item()}')
@@ -129,3 +133,8 @@ for sample_no, item in enumerate(dataloader):
     save_audio(advers=adver, spk1_file_ids=spk1_file_ids, spk2_file_ids=spk2_file_ids, root=adver_dir,success=success)
     success_cnt += sum(success)
     logging.info('success rate: {}/{}={}'.format(int(success_cnt), total_cnt, success_cnt / total_cnt))
+
+df = pandas.DataFrame(df)
+df.to_csv(os.path.join(adver_dir, 'attackResult.csv'), index=False)
+# remove f'{self.adver_dir}/a.wav'
+os.remove(f'{adver_dir}/a.wav')

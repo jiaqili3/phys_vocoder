@@ -110,8 +110,8 @@ class PGD(Attack):
             # detect attack successful
             if cost.item() > 0:
                 # check if attack is successful
-                torchaudio.save(f'a.wav', adv_x2.cpu().detach().squeeze(0), 16000, encoding='PCM_S', bits_per_sample=16)
-                a = torchaudio.load(f'a.wav')[0].to(self.device)
+                torchaudio.save(f'{self.adver_dir}/a.wav', adv_x2.cpu().detach().squeeze(0), 16000, encoding='PCM_S', bits_per_sample=16)
+                a = torchaudio.load(f'{self.adver_dir}/a.wav')[0].to(self.device)
                 try:
                     decision, score = self.model(x1, a)
                 except:

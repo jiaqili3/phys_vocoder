@@ -1,6 +1,5 @@
 from easydict import EasyDict as edict
 import sys
-from attack.attacks.pgd import PGD
 import torch
 
 config = edict()
@@ -8,14 +7,14 @@ config = edict()
 # use the alternate pipeline, which 
 # does not attack the vocoder model, only use it to gen input
 # when using the alternate pipeline, must have a physical vocoder 
-config.use_alternate_pipeline = True
+config.use_alternate_pipeline = False
 
 # ---------------------------------------- physical vocoder ---------------------------------------- #
 from phys_vocoder.hifigan.generator import HifiganEndToEnd
-from phys_vocoder.unet.unet import UNetEndToEnd
+from phys_vocoder.unet.unet import UNetEndToEnd, UNetMixedLoss1NormalizedEndToEnd, UNetSpecLossEndToEnd, UNetSpecLossEndToEnd1, UNetMixedLossEndToEnd, UNetMixedLossNormalizedEndToEnd, UNetGAN
 
 # set to None if not using phys vocoder
-config.phys_vocoder_model = UNetEndToEnd
+config.phys_vocoder_model = UNetGAN
 
 # HifiGAN
 if config.phys_vocoder_model == HifiganEndToEnd:
@@ -26,6 +25,26 @@ if config.phys_vocoder_model == HifiganEndToEnd:
 elif config.phys_vocoder_model == UNetEndToEnd:
     config.phys_vocoder_model = UNetEndToEnd()
     config.phys_vocoder_model.load_model('/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0702/model-45000.pt')
+# unet trained with spec loss, A100 GPU
+elif config.phys_vocoder_model == UNetSpecLossEndToEnd:
+    config.phys_vocoder_model = UNetSpecLossEndToEnd()
+    config.phys_vocoder_model.load_model('/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0712_specloss/model-11840000.pt')
+elif config.phys_vocoder_model == UNetSpecLossEndToEnd1:
+    config.phys_vocoder_model = UNetSpecLossEndToEnd1()
+    config.phys_vocoder_model.load_model('/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0710_specloss/model-88000.pt')
+elif config.phys_vocoder_model == UNetMixedLossEndToEnd:
+    config.phys_vocoder_model = UNetMixedLossEndToEnd()
+    config.phys_vocoder_model.load_model('/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0717_mixedloss_0717recdata/model-33744000.pt')
+elif config.phys_vocoder_model == UNetMixedLossNormalizedEndToEnd:
+    config.phys_vocoder_model = UNetMixedLossNormalizedEndToEnd()
+    # config.phys_vocoder_model.load_model('/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0719_mixedloss_normalized/model-3264000.pt')
+    config.phys_vocoder_model.load_model('/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0719_mixedloss_normalized/model-4080000.pt')
+elif config.phys_vocoder_model == UNetMixedLoss1NormalizedEndToEnd:
+    config.phys_vocoder_model = UNetMixedLoss1NormalizedEndToEnd()
+    config.phys_vocoder_model.load_model('/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0727_mixedloss1_normalized/model-1344000.pt')
+elif config.phys_vocoder_model == UNetGAN:
+    config.phys_vocoder_model = UNetGAN()
+    config.phys_vocoder_model.load_model('/home/lijiaqi/108427d78e3941708dce02e0dcd293a2/model-7130000.pt')
 
 if config.phys_vocoder_model is None:
     config.use_alternate_pipeline = False
@@ -37,7 +56,7 @@ from attack.models.ResNetSE34V2 import ResNetSE34V2
 from attack.models.tdnn import XVEC, XVEC1
 from attack.models.model_config import config as model_config
 
-config.model = ECAPATDNN
+config.model = RawNet3
 
 if config.model == RawNet3:
     config.model = RawNet3(**model_config['RawNet3'])
@@ -66,10 +85,10 @@ config.attack = edict()
 config.attack.adv_dir = '/mntcephfs/lab_data/lijiaqi/adver_out/'
 
 # steps: how many more times of attack to perform after a successful attack
-config.attack.steps = 10
+config.attack.steps = 0
 config.attack.alpha = 0.0004
 # config.attack.eps = 0.005
-config.attack.eps = 0.01
+config.attack.eps = 0.008
 
 # ---------------------------------------- dataset --------------------------------------- #
 config.data = edict()
