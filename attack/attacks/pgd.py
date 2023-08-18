@@ -4,6 +4,7 @@ import torch.nn as nn
 from ..attack import Attack
 from ..models.loss import SpeakerVerificationLoss
 import pdb
+import torchaudio
 # from torch.utils.tensorboard import SummaryWriter
 # writer = SummaryWriter()
 
@@ -87,13 +88,9 @@ class PGD(Attack):
             # print(f'loss: {cost.item()}')
             # writer.add_scalar(f'Sample {runno} Loss', cost.item(), i)
 
-            # detect attack successful
             if attack_success:
                 remaining_steps -= 1
-            elif cost.item() > 0:
-                attack_success = True
-                if remaining_steps == 0:
-                    remaining_steps -= 1
+
             sum_steps += 1
             # Update adversarial x2
             grad = torch.autograd.grad(cost, adv_x2,
@@ -110,7 +107,22 @@ class PGD(Attack):
             #     best_adv_x2 = adv_x2.clone().detach()
             #     best_decision = decision.clone().detach()
 
+            # detect attack successful
+            if cost.item() > 0:
+                # check if attack is successful
+                torchaudio.save(f'a.wav', adv_x2.cpu().detach().squeeze(0), 16000, encoding='PCM_S', bits_per_sample=16)
+                a = torchaudio.load(f'a.wav')[0].to(self.device)
+                try:
+                    decision, score = self.model(x1, a)
+                except:
+                    decision, score = self.model.make_decision_SV(x1, a)
+                if decision.item() == 1:
+                    attack_success = True
+                    remaining_steps -= 1
+            
+
         df['steps'].append(sum_steps)
+        print(f'sum_steps: {sum_steps}')
         df['max_perturbation'].append(torch.max(torch.abs(adv_x2 - x2)).item())
         df['success'].append(attack_success)
         return adv_x2.clone().detach(), decision.clone().detach(), cost
