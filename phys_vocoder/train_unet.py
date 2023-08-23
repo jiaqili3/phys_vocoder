@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 
 # BATCH_SIZE = 256
-BATCH_SIZE = 4
+BATCH_SIZE = 8
 SEGMENT_LENGTH = 32768*2
 HOP_LENGTH = 160
 SAMPLE_RATE = 16000
@@ -56,7 +56,7 @@ CHECKPOINT_INTERVAL = 20000
 def loss_func(out, tgt, spectrogram, enroll, asv_model):
     spec_out = spectrogram(out)
     spec_tgt = spectrogram(tgt)
-    # spec_loss = F.l1_loss(spec_out, spec_tgt)
+    spec_loss = F.l1_loss(spec_out, spec_tgt)
     # wav_loss = F.l1_loss(out, tgt)
 
     # return spec_loss
@@ -65,8 +65,11 @@ def loss_func(out, tgt, spectrogram, enroll, asv_model):
     _, cos1 = asv_model.make_decision_SV(enroll, out)
     _, cos2 = asv_model.make_decision_SV(enroll, tgt)
     # print(torch.abs(cos1-cos2).mean())
-    # return 0.1*spec_loss + 6*torch.abs(cos1-cos2).mean()
-    return torch.abs(cos1-cos2).mean()
+    return spec_loss + 60*torch.abs(cos1-cos2).mean()
+
+    # return 0.1*spec_loss + 0.9*wav_loss + 6*torch.abs(cos1-cos2).mean()
+    # return spec_loss + 50*torch.abs(cos1-cos2).mean()
+    # return torch.abs(cos1-cos2).mean()
 
 def plot_spectrogram(specgram, title=None, ylabel="freq_bin"):
     fig, axs = plt.subplots(1, 1)
@@ -83,19 +86,16 @@ def train_model(rank, world_size, args):
         "nccl",
         rank=rank,
         world_size=world_size,
-        init_method="tcp://localhost:54328",
+        init_method="tcp://localhost:54307",
     )
     if config.model is not None:
         asv_model = config.model.to(rank)
         asv_model.eval()
     else:
         asv_model = None
-    spectrogram = transforms.Spectrogram(
-                n_fft=1024,
-                win_length=1024,
-                hop_length=160,
-                onesided=True,
-            ).to(rank)
+    spectrogram = torchaudio.transforms.MelSpectrogram(sample_rate=16000, n_fft=512, win_length=400, hop_length=160, \
+        f_min=20, f_max=7600, window_fn=torch.hamming_window, n_mels=80).to(rank)
+
 
     os.makedirs(args.checkpoint_dir, exist_ok=True)
     log_dir = args.checkpoint_dir / "logs"
@@ -156,9 +156,9 @@ def train_model(rank, world_size, args):
     )
     validation_loader = DataLoader(
         validation_dataset,
-        batch_size=16,
+        batch_size=1,
         shuffle=False,
-        num_workers=1,
+        num_workers=4,
         pin_memory=True,
     )
 
@@ -408,14 +408,14 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--checkpoint_dir",
-        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0810_rawnet_finetune',
+        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0823_ecapatdnn_melloss',
         metavar="checkpoint-dir",
         help="path to the checkpoint directory",
         type=Path,
     )
     parser.add_argument(
         "--resume",
-        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0808_mixedloss1_normalized_pretrain/model-462000.pt',
+        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0712_specloss/model-11840000.pt',
         help="path to the checkpoint to resume from",
         type=Path,
     )
