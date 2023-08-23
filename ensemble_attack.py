@@ -6,19 +6,22 @@ import os
 import pdb
 import pandas
 from attack.attacks.pgd import PGD
+from attack.attacks.multiattack import MultiAttack
 import logging
 from dataset.asvspoof2019 import ASVspoof2019
 
 device = 'cuda:0'
 
 model = config.model
-model = model.to(device)
+for i in range(len(model)):
+    model[i] = model[i].to(device)
+    model[i].eval()
 if config.phys_vocoder_model is not None:
     config.phys_vocoder_model = config.phys_vocoder_model.to(device)
 
 
 adver_dir = config.attack.adv_dir
-adver_dir = os.path.join(adver_dir, f'{model.__class__.__name__}_{"None" if config.phys_vocoder_model is None else config.phys_vocoder_model.__class__.__name__}{"_Alt" if config.use_alternate_pipeline else ""}_{config.attack.steps}_{config.attack.alpha}_{config.attack.eps}')
+adver_dir = os.path.join(adver_dir, f'{model.__str__()}_{"None" if config.phys_vocoder_model is None else config.phys_vocoder_model.__class__.__name__}{"_Alt" if config.use_alternate_pipeline else ""}_{config.attack.steps}_{config.attack.alpha}_{config.attack.eps}')
 os.makedirs(adver_dir, exist_ok=True)
 logging.basicConfig(filename=f'{adver_dir}/log', encoding='utf-8', level=logging.DEBUG, force=True, format='%(asctime)-3s %(message)s')
 logging.info(f'adv samples saved to {adver_dir}')
@@ -41,15 +44,14 @@ class CombinedModel(torch.nn.Module):
             x2_voc = x2
         return self.model.make_decision_SV(x1, x2_voc)
 
-model.eval()
-if not config.use_alternate_pipeline:
-    combined_model = CombinedModel(model, config.phys_vocoder_model)
-else:
-    combined_model = CombinedModel(model, None)
-combined_model.eval()
-combined_model.threshold = model.threshold
+for i in range(len(model)):
+    thres = model[i].threshold
+    model[i] = CombinedModel(model[i], config.phys_vocoder_model)
+    model[i].eval()
+    model[i].threshold = thres
 
-attacker = PGD(combined_model, steps=config.attack.steps, alpha=config.attack.alpha, random_start=False, eps=config.attack.eps)
+
+attacker = MultiAttack(model, steps=config.attack.steps, alpha=config.attack.alpha, random_start=False, eps=config.attack.eps, adver_dir=adver_dir)
 attacker.adver_dir = adver_dir
 
 # data
@@ -123,10 +125,10 @@ for sample_no, item in enumerate(dataloader):
         continue
 
     total_cnt += 1
-    adver, success, score = attacker(x1, x2, y, sample_no, df)
+    adver, success, _, _ = attacker(x1, x2, y, sample_no, df)
     if config.use_alternate_pipeline:
         adver = adver - x2 + ori_x2
-    logging.info(f'attack score: {score.item()}')
+    # logging.info(f'attack score: {score.item()}')
 
     if len(adver.size()) == 3:
         adver = adver.squeeze(1)

@@ -33,7 +33,7 @@ class PGD(Attack):
 
     """
 
-    def __init__(self, model, eps=8/255, alpha=2/255, steps=10, random_start=False):
+    def __init__(self, model, eps=8/255, alpha=2/255, steps=10, random_start=False, **kwargs):
         super().__init__("PGD", model)
         self.model = model
         self.eps = eps
@@ -43,7 +43,7 @@ class PGD(Attack):
         self.supported_mode = ['default', 'targeted']
         self.loss = SpeakerVerificationLoss(threshold=self.model.threshold)
 
-    def forward(self, x1, x2, y, runno, df = None):
+    def forward(self, x1, x2, y, runno=0, df = None):
         # df: a dataframe(dictionary) to store the results
         r"""
         Overridden.
@@ -85,11 +85,21 @@ class PGD(Attack):
             # print(i, score)
             # Calculate loss
             cost = self.loss(score, y)
+            # detect attack successful
+            if cost.item() > 0:
+                # check if attack is successful
+                torchaudio.save(f'{self.adver_dir}/a.wav', adv_x2.cpu().detach().squeeze(0), 16000, encoding='PCM_S', bits_per_sample=16)
+                a = torchaudio.load(f'{self.adver_dir}/a.wav')[0].to(self.device).unsqueeze(0)
+                try:
+                    decision, score = self.model(x1, a)
+                except:
+                    decision, score = self.model.make_decision_SV(x1, a)
+                if decision.item() == 1:
+                    attack_success = True
+                    remaining_steps -= 1
+                    continue
             # print(f'loss: {cost.item()}')
             # writer.add_scalar(f'Sample {runno} Loss', cost.item(), i)
-
-            if attack_success:
-                remaining_steps -= 1
 
             sum_steps += 1
             # Update adversarial x2
@@ -107,23 +117,11 @@ class PGD(Attack):
             #     best_adv_x2 = adv_x2.clone().detach()
             #     best_decision = decision.clone().detach()
 
-            # detect attack successful
-            if cost.item() > 0:
-                # check if attack is successful
-                torchaudio.save(f'{self.adver_dir}/a.wav', adv_x2.cpu().detach().squeeze(0), 16000, encoding='PCM_S', bits_per_sample=16)
-                a = torchaudio.load(f'{self.adver_dir}/a.wav')[0].to(self.device).unsqueeze(0)
-                try:
-                    decision, score = self.model(x1, a)
-                except:
-                    decision, score = self.model.make_decision_SV(x1, a)
-                if decision.item() == 1:
-                    attack_success = True
-                    remaining_steps -= 1
             
-
-        df['steps'].append(sum_steps)
-        print(f'sum_steps: {sum_steps}')
-        df['max_perturbation'].append(torch.max(torch.abs(adv_x2 - x2)).item())
-        df['success'].append(attack_success)
-        return adv_x2.clone().detach(), decision.clone().detach(), cost
+        if df is not None:
+            df['steps'].append(sum_steps)
+            print(f'sum_steps: {sum_steps}')
+            df['max_perturbation'].append(torch.max(torch.abs(adv_x2 - x2)).item())
+            df['success'].append(attack_success)
+        return adv_x2.clone().detach(), decision.clone().detach(), cost, sum_steps
         # return best_adv_x2, best_decision, best_cost
