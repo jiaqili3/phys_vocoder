@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 
 # BATCH_SIZE = 256
-BATCH_SIZE = 8
+BATCH_SIZE = 128
 SEGMENT_LENGTH = 32768*2
 HOP_LENGTH = 160
 SAMPLE_RATE = 16000
@@ -47,17 +47,17 @@ FINETUNE_LEARNING_RATE = 1e-6
 BETAS = (0.8, 0.99)
 LEARNING_RATE_DECAY = 0.995
 WEIGHT_DECAY = 1e-5
-EPOCHS = 500
+EPOCHS = 200
 LOG_INTERVAL = 5
-VALIDATION_INTERVAL = 1000
+VALIDATION_INTERVAL = 10000 // BATCH_SIZE * BATCH_SIZE
 NUM_GENERATED_EXAMPLES = 10
-CHECKPOINT_INTERVAL = 20000
+CHECKPOINT_INTERVAL = 20000 // BATCH_SIZE * BATCH_SIZE
 
 def loss_func(out, tgt, spectrogram, enroll, asv_model):
     spec_out = spectrogram(out)
     spec_tgt = spectrogram(tgt)
     spec_loss = F.l1_loss(spec_out, spec_tgt)
-    # wav_loss = F.l1_loss(out, tgt)
+    wav_loss = F.l1_loss(out, tgt)
 
     # return spec_loss
 
@@ -65,7 +65,7 @@ def loss_func(out, tgt, spectrogram, enroll, asv_model):
     _, cos1 = asv_model.make_decision_SV(enroll, out)
     _, cos2 = asv_model.make_decision_SV(enroll, tgt)
     # print(torch.abs(cos1-cos2).mean())
-    return spec_loss + 60*torch.abs(cos1-cos2).mean()
+    return 0.1*spec_loss + 0.9*wav_loss + 6*torch.abs(cos1-cos2).mean()
 
     # return 0.1*spec_loss + 0.9*wav_loss + 6*torch.abs(cos1-cos2).mean()
     # return spec_loss + 50*torch.abs(cos1-cos2).mean()
@@ -156,7 +156,7 @@ def train_model(rank, world_size, args):
     )
     validation_loader = DataLoader(
         validation_dataset,
-        batch_size=1,
+        batch_size=4,
         shuffle=False,
         num_workers=4,
         pin_memory=True,
@@ -408,20 +408,20 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--checkpoint_dir",
-        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0823_ecapatdnn_melloss',
+        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0823_wavmel_ecapatdnn_zerostart',
         metavar="checkpoint-dir",
         help="path to the checkpoint directory",
         type=Path,
     )
     parser.add_argument(
         "--resume",
-        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0712_specloss/model-11840000.pt',
+        default=None,
         help="path to the checkpoint to resume from",
         type=Path,
     )
     parser.add_argument(
         "--finetune",
-        default=True,
+        default=False,
         help="whether to finetune (note that a resume path must be given)",
         action="store_true",
     )
