@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 
 # BATCH_SIZE = 256
-BATCH_SIZE = 128
+BATCH_SIZE = 256
 SEGMENT_LENGTH = 32768*2
 HOP_LENGTH = 160
 SAMPLE_RATE = 16000
@@ -49,23 +49,25 @@ LEARNING_RATE_DECAY = 0.995
 WEIGHT_DECAY = 1e-5
 EPOCHS = 200
 LOG_INTERVAL = 5
-VALIDATION_INTERVAL = 10000 // BATCH_SIZE * BATCH_SIZE
+VALIDATION_INTERVAL = 20000 // BATCH_SIZE * BATCH_SIZE
 NUM_GENERATED_EXAMPLES = 10
-CHECKPOINT_INTERVAL = 20000 // BATCH_SIZE * BATCH_SIZE
+CHECKPOINT_INTERVAL = 40000 // BATCH_SIZE * BATCH_SIZE
 
 def loss_func(out, tgt, spectrogram, enroll, asv_model):
     spec_out = spectrogram(out)
     spec_tgt = spectrogram(tgt)
     spec_loss = F.l1_loss(spec_out, spec_tgt)
-    wav_loss = F.l1_loss(out, tgt)
-
+    # wav_loss = F.l1_loss(out, tgt)
+    return spec_loss + 100*F.mse_loss(out, tgt)
     # return spec_loss
 
     enroll = torch.cat([enroll.unsqueeze(0)]*spec_out.shape[0], dim=0)
     _, cos1 = asv_model.make_decision_SV(enroll, out)
     _, cos2 = asv_model.make_decision_SV(enroll, tgt)
     # print(torch.abs(cos1-cos2).mean())
-    return 0.1*spec_loss + 0.9*wav_loss + 6*torch.abs(cos1-cos2).mean()
+    # print(0.1*spec_loss + 0.9*wav_loss)
+    # pdb.set_trace()
+    return 0.1*spec_loss + 0.9*wav_loss + torch.abs(cos1-cos2).mean()
 
     # return 0.1*spec_loss + 0.9*wav_loss + 6*torch.abs(cos1-cos2).mean()
     # return spec_loss + 50*torch.abs(cos1-cos2).mean()
@@ -156,7 +158,7 @@ def train_model(rank, world_size, args):
     )
     validation_loader = DataLoader(
         validation_dataset,
-        batch_size=4,
+        batch_size=32,
         shuffle=False,
         num_workers=4,
         pin_memory=True,
@@ -296,11 +298,11 @@ def train_model(rank, world_size, args):
                             #     0,
                             #     sample_rate=16000,
                             # )
-                            spec_out = spec_out_[n].squeeze(0).cpu()
-                            spec_tgt = spec_tgt_[n].squeeze(0).cpu()
-                            spec_src = spec_src_[n].squeeze(0).cpu()
-                            spec_outminsrc = spec_out - spec_src
-                            spec_tgtminsrc = spec_tgt - spec_src
+                            # spec_out = spec_out_[n].squeeze(0).cpu()
+                            # spec_tgt = spec_tgt_[n].squeeze(0).cpu()
+                            # spec_src = spec_src_[n].squeeze(0).cpu()
+                            # spec_outminsrc = spec_out - spec_src
+                            # spec_tgtminsrc = spec_tgt - spec_src
                             # writer.add_figure(
                             #     f"spec_diff/spec_{j}",
                             #     plot_spectrogram(spec_diff.cpu().numpy()),
@@ -365,9 +367,6 @@ def train_model(rank, world_size, args):
 
                 new_best = best_loss > average_validation_loss
                 if new_best or global_step % CHECKPOINT_INTERVAL == 0:
-                    if new_best:
-                        logger.info("-------- new best model found!")
-                        best_loss = average_validation_loss
 
                     if rank == 0:
                         state = {
@@ -380,6 +379,19 @@ def train_model(rank, world_size, args):
                             "loss": average_validation_loss,
                         }
                         torch.save(state, args.checkpoint_dir / f"model-{global_step}.pt")
+                    if new_best:
+                        state = {
+                            "generator": {
+                                "model": generator.module.state_dict(),
+                                "optimizer": optimizer_generator.state_dict(),
+                                "scheduler": scheduler_generator.state_dict(),
+                            },
+                            "step": global_step,
+                            "loss": average_validation_loss,
+                        }
+                        logger.info("-------- new best model found!")
+                        best_loss = average_validation_loss
+                        torch.save(state, args.checkpoint_dir / f"model-best.pt")
 
         scheduler_generator.step()
 
@@ -408,7 +420,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--checkpoint_dir",
-        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0823_wavmel_ecapatdnn_zerostart',
+        default='/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0824_melandl2wavloss',
         metavar="checkpoint-dir",
         help="path to the checkpoint directory",
         type=Path,
