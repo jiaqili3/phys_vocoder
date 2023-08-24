@@ -14,7 +14,7 @@ from phys_vocoder.hifigan.generator import HifiganEndToEnd
 from phys_vocoder.unet.unet import TestUNet,UNetMelLossFinetuned,UNetMelLossEndToEnd,UNetEndToEnd, UNetMixedLoss1NormalizedEndToEnd, UNetSpecLossEndToEnd, UNetSpecLossEndToEnd1, UNetMixedLossEndToEnd, UNetMixedLossNormalizedEndToEnd, UNetGAN, UNetGANNormalized
 
 # set to None if not using phys vocoder
-config.phys_vocoder_model = UNetMixedLossNormalizedEndToEnd
+config.phys_vocoder_model = None
 
 # HifiGAN
 if config.phys_vocoder_model == HifiganEndToEnd:
@@ -74,7 +74,9 @@ from attack.models.tdnn import XVEC, XVEC1
 from attack.models.model_config import config as model_config
 
 config.model = [RawNet3, ECAPATDNN, ResNetSE34V2]
-for i in range(config.model):
+
+
+for i in range(len(config.model)):
     if config.model[i] == RawNet3:
         config.model[i] = RawNet3(**model_config['RawNet3'])
         config.model[i].load_state_dict(torch.load('./pretrained_models/rawnet3.pt'))
@@ -105,7 +107,7 @@ config.attack.adv_dir = '/mntcephfs/lab_data/lijiaqi/adver_out/'
 config.attack.steps = 0
 config.attack.alpha = 0.0004
 # config.attack.eps = 0.005
-config.attack.eps = 0.008
+config.attack.eps = 0.012
 
 # ---------------------------------------- dataset --------------------------------------- #
 config.data = edict()

@@ -11,10 +11,10 @@ config.use_alternate_pipeline = False
 
 # ---------------------------------------- physical vocoder ---------------------------------------- #
 from phys_vocoder.hifigan.generator import HifiganEndToEnd
-from phys_vocoder.unet.unet import UNetEndToEnd, UNetMixedLoss1NormalizedEndToEnd, UNetSpecLossEndToEnd, UNetSpecLossEndToEnd1, UNetMixedLossEndToEnd, UNetMixedLossNormalizedEndToEnd, UNetGAN
+from phys_vocoder.unet.unet import UNetSpecAndWavLoss,TestUNet,UNetMelLossFinetuned,UNetMelLossEndToEnd,UNetEndToEnd, UNetMixedLoss1NormalizedEndToEnd, UNetSpecLossEndToEnd, UNetSpecLossEndToEnd1, UNetMixedLossEndToEnd, UNetMixedLossNormalizedEndToEnd, UNetGAN, UNetGANNormalized
 
 # set to None if not using phys vocoder
-config.phys_vocoder_model = UNetGAN
+config.phys_vocoder_model = UNetSpecAndWavLoss
 
 # HifiGAN
 if config.phys_vocoder_model == HifiganEndToEnd:
@@ -22,10 +22,30 @@ if config.phys_vocoder_model == HifiganEndToEnd:
     config.phys_vocoder_model.load_model('/mntcephfs/lab_data/lijiaqi/hifigan-checkpoints/0630/model-115000.pt')
 
 # unet
+elif config.phys_vocoder_model == UNetSpecAndWavLoss:
+    config.phys_vocoder_model = UNetSpecAndWavLoss()
+    config.phys_vocoder_model.load_model('/home/lijiaqi/108427d78e3941708dce02e0dcd293a2/model-6902700.pt')
+elif config.phys_vocoder_model == TestUNet:
+    config.phys_vocoder_model = TestUNet()
+    config.phys_vocoder_model.load_model('/home/lijiaqi/108427d78e3941708dce02e0dcd293a2/model-10416000.pt')
+    # /home/lijiaqi/108427d78e3941708dce02e0dcd293a2/model-40000.pt
 elif config.phys_vocoder_model == UNetEndToEnd:
     config.phys_vocoder_model = UNetEndToEnd()
     config.phys_vocoder_model.load_model('/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0702/model-45000.pt')
 # unet trained with spec loss, A100 GPU
+elif config.phys_vocoder_model == UNetMelLossEndToEnd:
+    config.phys_vocoder_model = UNetMelLossEndToEnd()
+    config.phys_vocoder_model.load_model('/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0812_mel_pretrain/model-6534000.pt')
+elif config.phys_vocoder_model == UNetMelLossFinetuned:
+    config.phys_vocoder_model = UNetMelLossFinetuned()
+    config.phys_vocoder_model.load_model('/home/lijiaqi/108427d78e3941708dce02e0dcd293a2/unet_checkpoints/model-221000.pt')
+elif config.phys_vocoder_model == UNetGAN:
+    config.phys_vocoder_model = UNetGAN()
+    config.phys_vocoder_model.load_model('/home/lijiaqi/108427d78e3941708dce02e0dcd293a2/model-7130000.pt')
+
+
+
+
 elif config.phys_vocoder_model == UNetSpecLossEndToEnd:
     config.phys_vocoder_model = UNetSpecLossEndToEnd()
     config.phys_vocoder_model.load_model('/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0712_specloss/model-11840000.pt')
@@ -42,9 +62,9 @@ elif config.phys_vocoder_model == UNetMixedLossNormalizedEndToEnd:
 elif config.phys_vocoder_model == UNetMixedLoss1NormalizedEndToEnd:
     config.phys_vocoder_model = UNetMixedLoss1NormalizedEndToEnd()
     config.phys_vocoder_model.load_model('/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0727_mixedloss1_normalized/model-1344000.pt')
-elif config.phys_vocoder_model == UNetGAN:
-    config.phys_vocoder_model = UNetGAN()
-    config.phys_vocoder_model.load_model('/home/lijiaqi/108427d78e3941708dce02e0dcd293a2/model-7130000.pt')
+elif config.phys_vocoder_model == UNetGANNormalized:
+    config.phys_vocoder_model = UNetGANNormalized()
+    config.phys_vocoder_model.load_model('/home/lijiaqi/108427d78e3941708dce02e0dcd293a2/model-180000.pt')
 
 if config.phys_vocoder_model is None:
     config.use_alternate_pipeline = False
@@ -56,7 +76,7 @@ from attack.models.ResNetSE34V2 import ResNetSE34V2
 from attack.models.tdnn import XVEC, XVEC1
 from attack.models.model_config import config as model_config
 
-config.model = RawNet3
+config.model = ResNetSE34V2
 
 if config.model == RawNet3:
     config.model = RawNet3(**model_config['RawNet3'])

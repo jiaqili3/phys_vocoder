@@ -21,10 +21,12 @@ if config.phys_vocoder_model is not None:
 
 
 adver_dir = config.attack.adv_dir
-adver_dir = os.path.join(adver_dir, f'{model.__str__()}_{"None" if config.phys_vocoder_model is None else config.phys_vocoder_model.__class__.__name__}{"_Alt" if config.use_alternate_pipeline else ""}_{config.attack.steps}_{config.attack.alpha}_{config.attack.eps}')
+
+adver_dir = os.path.join(adver_dir, f'{"-".join([m.__class__.__name__ for m in model])}_{"None" if config.phys_vocoder_model is None else config.phys_vocoder_model.__class__.__name__}{"_Alt" if config.use_alternate_pipeline else ""}_{config.attack.steps}_{config.attack.alpha}_{config.attack.eps}')
 os.makedirs(adver_dir, exist_ok=True)
 logging.basicConfig(filename=f'{adver_dir}/log', encoding='utf-8', level=logging.DEBUG, force=True, format='%(asctime)-3s %(message)s')
 logging.info(f'adv samples saved to {adver_dir}')
+print(f'adv samples saved to {adver_dir}')
 logging.info(f'use alt pipe: {config.use_alternate_pipeline}')
 logging.info(config.attack)
 
@@ -53,6 +55,7 @@ for i in range(len(model)):
 
 attacker = MultiAttack(model, steps=config.attack.steps, alpha=config.attack.alpha, random_start=False, eps=config.attack.eps, adver_dir=adver_dir)
 attacker.adver_dir = adver_dir
+attacker.device = device
 
 # data
 dataset_name = 'ASVspoof2019'
@@ -125,7 +128,7 @@ for sample_no, item in enumerate(dataloader):
         continue
 
     total_cnt += 1
-    adver, success, _, _ = attacker(x1, x2, y, sample_no, df)
+    adver, success, _, _ = attacker.forward(x1, x2, y, sample_no, df)
     if config.use_alternate_pipeline:
         adver = adver - x2 + ori_x2
     # logging.info(f'attack score: {score.item()}')
@@ -135,6 +138,7 @@ for sample_no, item in enumerate(dataloader):
     save_audio(advers=adver, spk1_file_ids=spk1_file_ids, spk2_file_ids=spk2_file_ids, root=adver_dir,success=success)
     success_cnt += sum(success)
     logging.info('success rate: {}/{}={}'.format(int(success_cnt), total_cnt, success_cnt / total_cnt))
+    print('success rate: {}/{}={}'.format(int(success_cnt), total_cnt, success_cnt / total_cnt))
 
 df = pandas.DataFrame(df)
 df.to_csv(os.path.join(adver_dir, 'attackResult.csv'), index=False)
