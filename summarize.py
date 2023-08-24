@@ -1,7 +1,7 @@
 import glob
 
 paths = []
-paths += glob.glob('mate_*_UNetMixedLoss1*/log')
+paths += glob.glob('transfer_attack_exps/mate_*_UNetMixedLoss1*/log')
 # sort the paths
 paths = sorted(paths)
 for path in paths:
