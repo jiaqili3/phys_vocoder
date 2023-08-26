@@ -123,7 +123,7 @@ for sample_no, item in enumerate(dataloader):
         continue
 
     total_cnt += 1
-    adver, success, score, _ = attacker(x1, x2, y, sample_no, df)
+    adver, success, score = attacker(x1, x2, y, sample_no, df)
     if config.use_alternate_pipeline:
         adver = adver - x2 + ori_x2
     logging.info(f'attack score: {score.item()}')
