@@ -52,10 +52,13 @@ class MultiAttack():
         while True:
             is_all_success = [True]*3
             for i in range(len(self.models)):
-                adv_x2, decision, _, sum_steps = attackers[i](x1, adv_x2, y)
-                delta = torch.clamp(adv_x2 - x2,
-                                min=-self.kwargs['eps'], max=self.kwargs['eps'])
-                adv_x2 = torch.clamp(x2 + delta, min=-1, max=1).detach()
+                if self.models[i].forward(x1, adv_x2)[0].item() == 0:
+                    adv_x2, decision, _, sum_steps = attackers[i](x1, adv_x2, y)
+                    delta = torch.clamp(adv_x2 - x2,
+                                    min=-self.kwargs['eps'], max=self.kwargs['eps'])
+                    adv_x2 = torch.clamp(x2 + delta, min=-1, max=1).detach()
+                else:
+                    sum_steps = 0
                 print(f'attack model {i} sum_steps: {sum_steps}')
                 if sum_steps != 0:
                     is_all_success[i] = False
