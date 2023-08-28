@@ -11,10 +11,10 @@ config.use_alternate_pipeline = False
 
 # ---------------------------------------- physical vocoder ---------------------------------------- #
 from phys_vocoder.hifigan.generator import HifiganEndToEnd
-from phys_vocoder.unet.unet import UNetSpecAndWavLoss,TestUNet,UNetMelLossFinetuned,UNetMelLossEndToEnd,UNetEndToEnd, UNetMixedLoss1NormalizedEndToEnd, UNetSpecLossEndToEnd, UNetSpecLossEndToEnd1, UNetMixedLossEndToEnd, UNetMixedLossNormalizedEndToEnd, UNetGAN, UNetGANNormalized
+from phys_vocoder.unet.unet import UNetMelASVLoss,UNetSpecAndWavLoss,TestUNet,UNetMelLossFinetuned,UNetMelLossEndToEnd,UNetEndToEnd, UNetMixedLoss1NormalizedEndToEnd, UNetSpecLossEndToEnd, UNetSpecLossEndToEnd1, UNetMixedLossEndToEnd, UNetMixedLossNormalizedEndToEnd, UNetGAN, UNetGANNormalized, UNetL1WavLoss, UNetMSEWavLoss
 
 # set to None if not using phys vocoder
-config.phys_vocoder_model = UNetSpecAndWavLoss
+config.phys_vocoder_model = UNetL1WavLoss
 
 # HifiGAN
 if config.phys_vocoder_model == HifiganEndToEnd:
@@ -22,6 +22,15 @@ if config.phys_vocoder_model == HifiganEndToEnd:
     config.phys_vocoder_model.load_model('/mntcephfs/lab_data/lijiaqi/hifigan-checkpoints/0630/model-115000.pt')
 
 # unet
+elif config.phys_vocoder_model == UNetMelASVLoss:
+    config.phys_vocoder_model = UNetMelASVLoss()
+    config.phys_vocoder_model.load_model('/home/lijiaqi/108427d78e3941708dce02e0dcd293a2/model-5590000.pt')
+elif config.phys_vocoder_model == UNetL1WavLoss:
+    config.phys_vocoder_model = UNetL1WavLoss()
+    config.phys_vocoder_model.load_model('/home/lijiaqi/108427d78e3941708dce02e0dcd293a2/model-1755600.pt')
+elif config.phys_vocoder_model == UNetMSEWavLoss:
+    config.phys_vocoder_model = UNetMSEWavLoss()
+    config.phys_vocoder_model.load_model('/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0824_mseloss/model-best.pt')
 elif config.phys_vocoder_model == UNetSpecAndWavLoss:
     config.phys_vocoder_model = UNetSpecAndWavLoss()
     config.phys_vocoder_model.load_model('/home/lijiaqi/108427d78e3941708dce02e0dcd293a2/model-6902700.pt')
@@ -76,7 +85,7 @@ from attack.models.ResNetSE34V2 import ResNetSE34V2
 from attack.models.tdnn import XVEC, XVEC1
 from attack.models.model_config import config as model_config
 
-config.model = ResNetSE34V2
+config.model = XVEC1
 
 if config.model == RawNet3:
     config.model = RawNet3(**model_config['RawNet3'])

@@ -11,7 +11,7 @@ config.use_alternate_pipeline = False
 
 # ---------------------------------------- physical vocoder ---------------------------------------- #
 from phys_vocoder.hifigan.generator import HifiganEndToEnd
-from phys_vocoder.unet.unet import TestUNet,UNetMelLossFinetuned,UNetMelLossEndToEnd,UNetEndToEnd, UNetMixedLoss1NormalizedEndToEnd, UNetSpecLossEndToEnd, UNetSpecLossEndToEnd1, UNetMixedLossEndToEnd, UNetMixedLossNormalizedEndToEnd, UNetGAN, UNetGANNormalized
+from phys_vocoder.unet.unet import UNetMelASVLoss,UNetSpecAndWavLoss,TestUNet,UNetMelLossFinetuned,UNetMelLossEndToEnd,UNetEndToEnd, UNetMixedLoss1NormalizedEndToEnd, UNetSpecLossEndToEnd, UNetSpecLossEndToEnd1, UNetMixedLossEndToEnd, UNetMixedLossNormalizedEndToEnd, UNetGAN, UNetGANNormalized, UNetL1WavLoss, UNetMSEWavLoss
 
 # set to None if not using phys vocoder
 config.phys_vocoder_model = None
@@ -22,6 +22,18 @@ if config.phys_vocoder_model == HifiganEndToEnd:
     config.phys_vocoder_model.load_model('/mntcephfs/lab_data/lijiaqi/hifigan-checkpoints/0630/model-115000.pt')
 
 # unet
+elif config.phys_vocoder_model == UNetMelASVLoss:
+    config.phys_vocoder_model = UNetMelASVLoss()
+    config.phys_vocoder_model.load_model('/home/lijiaqi/108427d78e3941708dce02e0dcd293a2/model-5590000.pt')
+elif config.phys_vocoder_model == UNetL1WavLoss:
+    config.phys_vocoder_model = UNetL1WavLoss()
+    config.phys_vocoder_model.load_model('/home/lijiaqi/108427d78e3941708dce02e0dcd293a2/model-1755600.pt')
+elif config.phys_vocoder_model == UNetMSEWavLoss:
+    config.phys_vocoder_model = UNetMSEWavLoss()
+    config.phys_vocoder_model.load_model('/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0824_mseloss/model-best.pt')
+elif config.phys_vocoder_model == UNetSpecAndWavLoss:
+    config.phys_vocoder_model = UNetSpecAndWavLoss()
+    config.phys_vocoder_model.load_model('/home/lijiaqi/108427d78e3941708dce02e0dcd293a2/model-6902700.pt')
 elif config.phys_vocoder_model == TestUNet:
     config.phys_vocoder_model = TestUNet()
     config.phys_vocoder_model.load_model('/home/lijiaqi/108427d78e3941708dce02e0dcd293a2/model-10416000.pt')
@@ -73,7 +85,12 @@ from attack.models.ResNetSE34V2 import ResNetSE34V2
 from attack.models.tdnn import XVEC, XVEC1
 from attack.models.model_config import config as model_config
 
-config.model = [RawNet3, ECAPATDNN, ResNetSE34V2]
+config.model = [
+                RawNet3, 
+                XVEC1, 
+                ResNetSE34V2, 
+                # ECAPATDNN
+                ]
 
 
 for i in range(len(config.model)):
@@ -101,7 +118,7 @@ for i in range(len(config.model)):
 # ---------------------------------------- Attack ---------------------------------------
 
 config.attack = edict()
-config.attack.adv_dir = '/mntcephfs/lab_data/lijiaqi/adver_out/'
+config.attack.adv_dir = '/mntcephfs/lab_data/lijiaqi/ensemble_adver_out/'
 
 # steps: how many more times of attack to perform after a successful attack
 config.attack.steps = 0

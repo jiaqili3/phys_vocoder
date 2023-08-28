@@ -21,7 +21,18 @@ class UNetEndToEnd(nn.Module):
         return self.unet(x)[:,:,:ori_size]
     def load_model(self, checkpoint_path: str, device:str='cpu') -> None:
         self.unet.load_state_dict(torch.load(checkpoint_path, map_location=device)["generator"]["model"])
-
+class UNetMelASVLoss(UNetEndToEnd):
+    def __init__(self) -> None:
+        super().__init__()
+        self.unet = UNet()
+class UNetL1WavLoss(UNetEndToEnd):
+    def __init__(self) -> None:
+        super().__init__()
+        self.unet = UNet()
+class UNetMSEWavLoss(UNetEndToEnd):
+    def __init__(self) -> None:
+        super().__init__()
+        self.unet = UNet()
 class UNetSpecAndWavLoss(UNetEndToEnd):
     def __init__(self) -> None:
         super().__init__()

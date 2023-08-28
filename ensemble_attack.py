@@ -53,7 +53,7 @@ for i in range(len(model)):
     model[i].threshold = thres
 
 
-attacker = MultiAttack(model, steps=config.attack.steps, alpha=config.attack.alpha, random_start=False, eps=config.attack.eps, adver_dir=adver_dir)
+attacker = MultiAttack(model, steps=config.attack.steps, alpha=config.attack.alpha, random_start=False, eps=config.attack.eps)
 attacker.adver_dir = adver_dir
 attacker.device = device
 
@@ -120,10 +120,10 @@ for sample_no, item in enumerate(dataloader):
         file_name = '{}_{}'.format(spk1_file_id, spk2_file_id)
         adver_path = os.path.join(adver_dir, file_name + ".wav")
         # skip already existing ones
-        if os.path.exists(adver_path):
-            logging.info('adversarial audio already exists: {}'.format(adver_path))
-            flag = True
-            break
+        # if os.path.exists(adver_path):
+        #     logging.info('adversarial audio already exists: {}'.format(adver_path))
+        #     flag = True
+        #     break
     if flag:
         continue
 
