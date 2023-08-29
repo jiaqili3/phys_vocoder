@@ -1,14 +1,11 @@
 from easydict import EasyDict as edict
 import sys
 import torch
-
+import glob
 
 config = edict()
 
-config.adv_dirs = [
-    '/mntcephfs/lab_data/lijiaqi/phys_vocoder_recordings/iphone_RawNet3_UNetEndToEnd_300_0.0004_0.02',
-    ]
-
+config.adv_dirs = []
 # ---------------------------------------- ASV model ---------------------------------------- #
 from attack.models.RawNet import RawNet3
 from attack.models.ECAPATDNN import ECAPATDNN
@@ -18,13 +15,20 @@ from attack.models.model_config import config as model_config
 
 # phys vocoder
 from phys_vocoder.hifigan.generator import HifiganEndToEnd
-from phys_vocoder.unet.unet import UNetEndToEnd
+from phys_vocoder.unet.unet import UNetMelASVLoss,UNetSpecAndWavLoss,TestUNet,UNetMelLossFinetuned,UNetMelLossEndToEnd,UNetEndToEnd, UNetMixedLoss1NormalizedEndToEnd, UNetSpecLossEndToEnd, UNetSpecLossEndToEnd1, UNetMixedLossEndToEnd, UNetMixedLossNormalizedEndToEnd, UNetGAN, UNetGANNormalized, UNetL1WavLoss, UNetMSEWavLoss
 
-config.phys_vocoder_model = UNetEndToEnd
+config.adv_dirs += glob.glob('/mntcephfs/lab_data/lijiaqi/phys_vocoder_recordings/0828/iphone/*')
+config.adv_dirs.sort()
+config.phys_vocoder_model = None
+if config.phys_vocoder_model is None:
+    config.out_dir = './transfer_attack_exps/'
+else:
+    config.out_dir = './digital_attack_exps/'
+config.out_dir = './ensemble_attack_exps/'
 
-# config.models = [ResNetSE34V2, RawNet3, ECAPATDNN, XVEC, XVEC1]
-config.model = XVEC1
-config.use_phys_vocoder = False
+
+# config.models = [ResNetSE34V2, RawNet3, ECAPATDNN, XVEC1]
+config.model = ResNetSE34V2
 
 if config.model == RawNet3:
     config.model = RawNet3(**model_config['RawNet3'])
@@ -69,13 +73,59 @@ if config.phys_vocoder_model == HifiganEndToEnd:
     config.phys_vocoder_model.load_model('/mntcephfs/lab_data/lijiaqi/hifigan-checkpoints/0630/model-115000.pt')
 
 # unet
+elif config.phys_vocoder_model == UNetMelASVLoss:
+    config.phys_vocoder_model = UNetMelASVLoss()
+    config.phys_vocoder_model.load_model('/home/lijiaqi/108427d78e3941708dce02e0dcd293a2/model-5590000.pt')
+elif config.phys_vocoder_model == UNetL1WavLoss:
+    config.phys_vocoder_model = UNetL1WavLoss()
+    config.phys_vocoder_model.load_model('/home/lijiaqi/108427d78e3941708dce02e0dcd293a2/model-1755600.pt')
+elif config.phys_vocoder_model == UNetMSEWavLoss:
+    config.phys_vocoder_model = UNetMSEWavLoss()
+    config.phys_vocoder_model.load_model('/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0824_mseloss/model-best.pt')
+elif config.phys_vocoder_model == UNetSpecAndWavLoss:
+    config.phys_vocoder_model = UNetSpecAndWavLoss()
+    config.phys_vocoder_model.load_model('/home/lijiaqi/108427d78e3941708dce02e0dcd293a2/model-6902700.pt')
+elif config.phys_vocoder_model == TestUNet:
+    config.phys_vocoder_model = TestUNet()
+    config.phys_vocoder_model.load_model('/home/lijiaqi/108427d78e3941708dce02e0dcd293a2/model-10416000.pt')
+    # /home/lijiaqi/108427d78e3941708dce02e0dcd293a2/model-40000.pt
 elif config.phys_vocoder_model == UNetEndToEnd:
     config.phys_vocoder_model = UNetEndToEnd()
     config.phys_vocoder_model.load_model('/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0702/model-45000.pt')
+# unet trained with spec loss, A100 GPU
+elif config.phys_vocoder_model == UNetMelLossEndToEnd:
+    config.phys_vocoder_model = UNetMelLossEndToEnd()
+    config.phys_vocoder_model.load_model('/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0812_mel_pretrain/model-6534000.pt')
+elif config.phys_vocoder_model == UNetMelLossFinetuned:
+    config.phys_vocoder_model = UNetMelLossFinetuned()
+    config.phys_vocoder_model.load_model('/home/lijiaqi/108427d78e3941708dce02e0dcd293a2/unet_checkpoints/model-221000.pt')
+elif config.phys_vocoder_model == UNetGAN:
+    config.phys_vocoder_model = UNetGAN()
+    config.phys_vocoder_model.load_model('/home/lijiaqi/108427d78e3941708dce02e0dcd293a2/model-7130000.pt')
+elif config.phys_vocoder_model == UNetSpecLossEndToEnd:
+    config.phys_vocoder_model = UNetSpecLossEndToEnd()
+    config.phys_vocoder_model.load_model('/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0712_specloss/model-11840000.pt')
+elif config.phys_vocoder_model == UNetSpecLossEndToEnd1:
+    config.phys_vocoder_model = UNetSpecLossEndToEnd1()
+    config.phys_vocoder_model.load_model('/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0710_specloss/model-88000.pt')
+elif config.phys_vocoder_model == UNetMixedLossEndToEnd:
+    config.phys_vocoder_model = UNetMixedLossEndToEnd()
+    config.phys_vocoder_model.load_model('/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0717_mixedloss_0717recdata/model-33744000.pt')
+elif config.phys_vocoder_model == UNetMixedLossNormalizedEndToEnd:
+    config.phys_vocoder_model = UNetMixedLossNormalizedEndToEnd()
+    # config.phys_vocoder_model.load_model('/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0719_mixedloss_normalized/model-3264000.pt')
+    config.phys_vocoder_model.load_model('/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0719_mixedloss_normalized/model-4080000.pt')
+elif config.phys_vocoder_model == UNetMixedLoss1NormalizedEndToEnd:
+    config.phys_vocoder_model = UNetMixedLoss1NormalizedEndToEnd()
+    config.phys_vocoder_model.load_model('/mntcephfs/lab_data/lijiaqi/unet_checkpoints/0727_mixedloss1_normalized/model-1344000.pt')
+elif config.phys_vocoder_model == UNetGANNormalized:
+    config.phys_vocoder_model = UNetGANNormalized()
+    config.phys_vocoder_model.load_model('/home/lijiaqi/108427d78e3941708dce02e0dcd293a2/model-180000.pt')
 
-if config.use_phys_vocoder:
+if config.phys_vocoder_model is not None:
     print('using phys vocoder')
     thres = config.model.threshold
+    config.phys_vocoder_model.eval()
     config.model = CombinedModel(config.model, config.phys_vocoder_model)
     config.model.eval()
     config.model.threshold = thres
