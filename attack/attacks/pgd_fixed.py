@@ -86,9 +86,9 @@ class PGDFixed(Attack):
                                        retain_graph=False, create_graph=False)[0]
 
             adv_x2 = adv_x2.detach() + self.alpha*grad.sign()
-            delta = torch.clamp(adv_x2 - x2,
-                                min=-self.eps, max=self.eps)
-            adv_x2 = torch.clamp(x2 + delta, min=-1, max=1).detach()
+            # delta = torch.clamp(adv_x2 - x2,
+                                # min=-self.eps, max=self.eps)
+            # adv_x2 = torch.clamp(x2 + delta, min=-1, max=1).detach()
             
         return adv_x2.clone().detach(), decision.clone().detach(), cost, self.steps
         # return best_adv_x2, best_decision, best_cost

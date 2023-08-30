@@ -3,6 +3,7 @@ import torch
 from ..attack import Attack
 from .pgd import PGD
 import pdb
+import torchaudio
 
 class MultiAttack():
     r"""
@@ -52,7 +53,10 @@ class MultiAttack():
         while True:
             is_all_success = [True]*3
             for i in range(len(self.models)):
-                if self.models[i].forward(x1, adv_x2)[0].item() == 0:
+                torchaudio.save(f'{self.adver_dir}/a.wav', adv_x2.cpu().detach().squeeze(0), 16000, encoding='PCM_S', bits_per_sample=16)
+                a = torchaudio.load(f'{self.adver_dir}/a.wav')[0].to(self.device).unsqueeze(0)
+
+                if self.models[i].forward(x1, a)[0].item() == 0:
                     adv_x2, decision, _, sum_steps = attackers[i](x1, adv_x2, y)
                     delta = torch.clamp(adv_x2 - x2,
                                     min=-self.kwargs['eps'], max=self.kwargs['eps'])
@@ -70,7 +74,8 @@ class MultiAttack():
                     df['max_perturbation'].append(torch.max(torch.abs(adv_x2 - x2)).item())
                     print(f'max_perturbation: {torch.max(torch.abs(adv_x2 - x2)).item()}')
                     df['success'].append(is_all_success)
-                return adv_x2, decision, cnt, cnt
+                # pdb.set_trace()
+                return adv_x2, torch.ones(1), cnt, cnt
             # check success
             # check if 
 

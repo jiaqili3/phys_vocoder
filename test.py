@@ -6,7 +6,7 @@ import torchaudio
 from torch.utils.data import DataLoader
 import os
 import glob
-
+import pdb
 from dataset.asvspoof2019 import ASVspoof2019
 
 import logging
@@ -22,6 +22,9 @@ model = model.to(device)
 model.eval()
 
 def transferAttack(device, model, dataloader, out_file, logger):
+    with open('./audio_clipper/2500_list.txt') as flist:
+        flist = flist.readlines()
+
     num_success = 0.0
     num_total = 0.0
     with torch.no_grad():
@@ -33,7 +36,8 @@ def transferAttack(device, model, dataloader, out_file, logger):
             enroll_file = item[2]
             test_file = item[3]
             # print(f'enroll_file: {enroll_file} test_file: {test_file} enroll shape: {enroll_waveforms.shape} test shape: {test_waveforms.shape}')
-
+            if (f'{enroll_file}_{test_file}.wav\n' not in flist):
+                continue
 
             decisions, cos = model.make_decision_SV(enroll_waveforms, test_waveforms)
             num_total += enroll_waveforms.size(0)
@@ -52,9 +56,9 @@ for adv_dir in config.adv_dirs:
     attacker_info = adv_dir.split('/')[-1]  # PGD_XVEC-20230305192215_eps-0.001
 
 
-    output_dir = f'./transfer_attack_exps/{attacker_info}_versus_{model.__class__.__name__}'
+    output_dir = f'{config.out_dir}/{attacker_info}_versus_{model.__class__.__name__}'
     os.makedirs(output_dir, exist_ok=True)
-    logging.basicConfig(filename=f'./transfer_attack_exps/{attacker_info}_versus_{model.__class__.__name__}/log', encoding='utf-8', level=logging.DEBUG, force=True)
+    logging.basicConfig(filename=f'{config.out_dir}/{attacker_info}_versus_{model.__class__.__name__}/log', encoding='utf-8', level=logging.DEBUG, force=True)
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
 

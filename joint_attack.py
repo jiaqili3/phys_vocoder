@@ -45,8 +45,6 @@ model[0].threshold = thres
 
 adver_dir = config.attack.adv_dir
 
-
-pdb.set_trace()
 adver_dir = os.path.join(adver_dir, f'{"-".join([m.__class__.__name__ for m in model])}{"_Alt" if config.use_alternate_pipeline else ""}_{config.attack.steps}_{config.attack.alpha}_{config.attack.eps}')
 os.makedirs(adver_dir, exist_ok=True)
 logging.basicConfig(filename=f'{adver_dir}/log', encoding='utf-8', level=logging.DEBUG, force=True, format='%(asctime)-3s %(message)s')
