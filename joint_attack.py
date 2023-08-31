@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader
 import os
 import pdb
 import pandas
-from attack.attacks.jointattack import JointAttack
+from attack.attacks.multiattack import MultiAttack
 import logging
 from dataset.asvspoof2019 import ASVspoof2019
 
@@ -55,7 +55,7 @@ logging.info(config.attack)
 
 
 
-attacker = JointAttack(model, steps=config.attack.steps, alpha=config.attack.alpha, random_start=False, eps=config.attack.eps)
+attacker = MultiAttack(model, steps=config.attack.steps, alpha=config.attack.alpha, random_start=False, eps=config.attack.eps)
 attacker.adver_dir = adver_dir
 attacker.device = device
 

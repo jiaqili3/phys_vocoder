@@ -1,7 +1,7 @@
 import torch
 
 from ..attack import Attack
-from .pgd_fixed import PGDFixed
+from .pgd import PGD
 import pdb
 import torchaudio
 
@@ -43,11 +43,9 @@ class JointAttack():
         x2 = x2.clone().detach().to(self.device)
         y = y.clone().detach().to(self.device)
 
-        pgd1 = PGDFixed(self.models[0], **self.kwargs)
-        pgd1.steps = 1
+        pgd1 = PGD(self.models[0], **self.kwargs)
         pgd1.adver_dir = self.adver_dir
-        pgd2 = PGDFixed(self.models[1], **self.kwargs)
-        pgd2.steps = 1
+        pgd2 = PGD(self.models[1], **self.kwargs)
         pgd2.adver_dir = self.adver_dir
 
         adv_x2 = x2.clone().detach()
