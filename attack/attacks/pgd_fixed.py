@@ -54,6 +54,7 @@ class PGDFixed(Attack):
         x2 = x2.clone().detach().to(self.device)
         y = y.clone().detach().to(self.device)
 
+        self.steps = 1
         # if self.targeted:
         #     target_y = self.get_target_label(x2, y)
 
