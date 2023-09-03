@@ -2,6 +2,7 @@ import torch
 
 from ..attack import Attack
 from .pgd import PGD
+from .pgd_fixed import PGDFixed
 import pdb
 import torchaudio
 
@@ -47,39 +48,59 @@ class MultiAttack():
         cnt = 0
         attackers = []
         for m in self.models:
-            pgd = PGD(m, **self.kwargs)
+            pgd = PGDFixed(m, **self.kwargs)
             pgd.adver_dir = self.adver_dir
             attackers.append(pgd)
-        while True:
+        remaining_steps = 0
+        sum_steps = 0
+        while remaining_steps >= 0 and sum_steps < 400:
             is_all_success = [True]*2
-            for i in range(len(self.models)):
-                adv_x2, decision, _, sum_steps = attackers[i](x1, adv_x2, y)
-                delta = torch.clamp(adv_x2 - x2,
-                                min=-self.kwargs['eps'], max=self.kwargs['eps'])
-                adv_x2 = torch.clamp(x2 + delta, min=-1, max=1).detach()
-                is_all_success[i] = decision
-                print(f'attack model {i} sum_steps: {sum_steps}')
+
+            pgd1 = attackers[0]
+            pgd2 = attackers[1]
+            adv_x2_1, _, cost, sum_steps1 = pgd1(x1, adv_x2.clone().detach(), y)
+            adv_x2_2, _, _, sum_steps2 = pgd2(x1, adv_x2.clone().detach(), y)
+            adv_x2 = (adv_x2_1 + adv_x2_2 ) / 2
+            delta = torch.clamp(adv_x2 - x2, min=-pgd1.eps, max=pgd1.eps)
+            adv_x2 = torch.clamp(x2 + delta, min=-1, max=1).detach()
             torchaudio.save(f'{self.adver_dir}/a.wav', adv_x2.cpu().detach().squeeze(0), 16000, encoding='PCM_S', bits_per_sample=16)
             a = torchaudio.load(f'{self.adver_dir}/a.wav')[0].to(self.device).unsqueeze(0)
             try:
                 decision1, score = self.models[0](x1, a)
             except:
                 decision1, score = self.models[0].make_decision_SV(x1, a)
-
+            try:
+                decision2, score = self.models[1](x1, a)
+            except:
+                decision2, score = self.models[1].make_decision_SV(x1, a)
+            # print(cnt, decision1.item(), decision2.item())
             if decision1.item() == 0:
                 is_all_success[0] = False
             else:
                 is_all_success[0] = True
+            if decision2.item() == 0:
+                is_all_success[1] = False
+            else:
+                is_all_success[1] = True
             cnt += 1
+            # if df is not None:
+            #     df['steps'].append(cnt)
+            #     print(f'sum_steps: {cnt}')
+            #     df['max_perturbation'].append(torch.max(torch.abs(adv_x2 - x2)).item())
+            #     print(f'max_perturbation: {torch.max(torch.abs(adv_x2 - x2)).item()}')
+            #     df['success'].append(is_all_success)
+            # return adv_x2, torch.ones(1) if is_all_success[0] and is_all_success[1] else torch.zeros(1), cnt, cnt
             if is_all_success == [True]*2:
-                if df is not None:
-                    df['steps'].append(cnt)
-                    print(f'sum_steps: {cnt}')
-                    df['max_perturbation'].append(torch.max(torch.abs(adv_x2 - x2)).item())
-                    print(f'max_perturbation: {torch.max(torch.abs(adv_x2 - x2)).item()}')
-                    df['success'].append(is_all_success)
-                # pdb.set_trace()
-                return adv_x2, torch.ones(1), cnt, cnt
+                remaining_steps -= 1
+        if df is not None:
+            df['steps'].append(cnt)
+            print(f'sum_steps: {cnt}')
+            df['max_perturbation'].append(torch.max(torch.abs(adv_x2 - x2)).item())
+            print(f'max_perturbation: {torch.max(torch.abs(adv_x2 - x2)).item()}')
+            df['success'].append(is_all_success)
+        # pdb.set_trace()
+        print('complete')
+        return adv_x2, torch.ones(1), cnt, cnt
             # check success
             # check if 
 
