@@ -1,8 +1,9 @@
 # Physical Vocoder and Adversarial Attack
+Here are some codes for paper "An Initial Investigation of Neural Replay Simulator for Over-The-Air Adversarial Perturbations to Automatic Speaker Verification".
 - adversarial attack scripts: `./attack`
-- physical vocoder: `./phys_vocoder`
-- model checkpoints: `./pretrained_models`
-- utils for audio clipping: `./audio_clipper`
+- physical vocoder (the UNet model to simulate over-the-air process, specified in paper): `./phys_vocoder`
+- model checkpoints (the pretrained models specified in paper): `./pretrained_models`
+- utils for audio clipping (how we collect real-world recording datasets and align frame to frame): `./audio_clipper`
 - generate PGD adversarial examples: `./attack.py` and `init_attack.py`
 - test attack accuracy on ASV models: `./test.py` and `init_test.py`
 
